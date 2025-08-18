@@ -112,9 +112,6 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
     # If subpopulation gender is "Male", filter_data expects "M". If "Female", expects "F". If "Combined", expects "Both".
     filter_gender_choice <- ifelse(gender == "Male", "M", ifelse(gender == "Female", "F", "Both"))
 
-    # Store original row count before filtering
-    original_rows_count <- nrow(data)
-
     filtered_data_for_refiner <- filter_data(data,
                                  gender_choice = filter_gender_choice, # Use the derived gender_choice
                                  age_min = age_min,
@@ -122,25 +119,38 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
                                  col_gender = col_gender,
                                  col_age = col_age)
 
+    # --- NEW: Data Cleaning Steps for Parallel Analysis ---
+    # Retrieve the name of the value column to be cleaned
+    value_col_name <- col_value
+    
+    # Check if the column exists in the filtered data before proceeding
+    if (!value_col_name %in% names(filtered_data_for_refiner)) {
+      stop("Selected value column not found after filtering.")
+    }
+
+    # Store original row count before cleaning
+    original_rows_count <- nrow(filtered_data_for_refiner)
+
+    # Convert the value column to numeric, coercing non-numeric values to NA
+    cleaned_data <- filtered_data_for_refiner %>%
+      mutate(!!rlang::sym(value_col_name) := as.numeric(!!rlang::sym(value_col_name))) %>%
+      # Remove any rows where the value column is now NA
+      filter(!is.na(!!rlang::sym(value_col_name)))
+
     # Store the unfiltered (but age/gender-selected) data in the result for plotting
-    raw_subpopulation_data <- filter_data(data,
-                                          gender_choice = filter_gender_choice,
-                                          age_min = age_min,
-                                          age_max = age_max,
-                                          col_gender = col_gender,
-                                          col_age = col_age) %>%
+    raw_subpopulation_data <- cleaned_data %>%
                                     rename(Age = !!rlang::sym(col_age), Value = !!rlang::sym(col_value)) %>%
                                     mutate(label = label) # Add the label column here
     
-    if (nrow(filtered_data_for_refiner) == 0) {
-      stop(paste("No data found for subpopulation:", label, "after filtering."))
+    if (nrow(cleaned_data) == 0) {
+      stop(paste("No data found for subpopulation:", label, "after cleaning."))
     }
     
-    # Calculate the number of removed rows after filtering
-    removed_rows_count <- original_rows_count - nrow(filtered_data_for_refiner)
+    # Calculate the number of removed rows after filtering and cleaning
+    removed_rows_count <- original_rows_count - nrow(cleaned_data)
 
     # Run the refineR model
-    model <- refineR::findRI(Data = filtered_data_for_refiner[[col_value]],
+    model <- refineR::findRI(Data = cleaned_data[[col_value]],
                              NBootstrap = nbootstrap_value,
                              model = model_choice)
 
@@ -698,7 +708,7 @@ output$combined_dumbbell_plot <- renderPlot({
           output[[output_id_summary]] <- renderPrint({
               req(model)
               cat("--- RefineR Summary for ", input$parallel_col_value, " (Gender: ", gender_part, ", Age: ", age_range_part, ") ---\n")
-              cat(paste0("Rows Removed: ", result$removed_rows, "\n\n"))
+              cat(paste0("Rows Removed: ", result$removed_rows, "\n"))
               # Print the model summary, which uses the default `fullDataEst` point estimate
               print(model)
           })
