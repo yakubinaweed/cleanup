@@ -168,7 +168,7 @@ ui <- navbarPage(
         hr(),
         actionButton("run_parallel_btn", "Run Parallel Analysis", class = "btn-primary"),
         actionButton("reset_parallel_btn", "Reset", class = "btn-secondary"),
-        uiOutput("parallel_message")
+        div(style = "margin-top: 15px;", uiOutput("parallel_message"))
       ),
       mainPanel(
         # New tabsetPanel for organizing parallel results
