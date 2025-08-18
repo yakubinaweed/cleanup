@@ -180,6 +180,9 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
         message_rv(list(text = "Error: Selected value column not found after filtering.", type = "danger"))
         return(NULL)
     }
+    
+    # Store original row count before cleaning
+    original_rows_count <- nrow(filtered_data)
 
     # Convert the value column to numeric, coercing non-numeric values to NA
     cleaned_data <- filtered_data %>%
@@ -187,8 +190,11 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
       # Remove any rows where the value column is now NA (either originally empty or non-numeric text)
       filter(!is.na(!!rlang::sym(value_col_name)))
       
-    # Return the cleaned data frame
-    return(cleaned_data)
+    # Calculate removed row count
+    removed_rows_count <- original_rows_count - nrow(cleaned_data)
+    
+    # Return the cleaned data frame and the removed rows count
+    return(list(data = cleaned_data, removed_rows = removed_rows_count))
   })
 
   # Observer for the Analyze button
@@ -199,8 +205,10 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
       return()
     }
 
-    filtered_data <- filtered_data_reactive()
-    req(filtered_data)
+    filtered_result <- filtered_data_reactive()
+    req(filtered_result)
+    
+    filtered_data <- filtered_result$data
     
     if (nrow(filtered_data) == 0) {
       message_rv(list(text = "Filtered dataset is empty. Please adjust your filtering criteria.", type = "danger"))
@@ -290,6 +298,15 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
   # Renders the text summary reactively
   output$result_text <- renderPrint({
     req(refiner_model_rv())
+    
+    # Get the results from the reactive expression
+    filtered_result <- filtered_data_reactive()
+    
+    # Print the number of rows removed
+    if (!is.null(filtered_result$removed_rows)) {
+      cat(paste0("Note: ", filtered_result$removed_rows, " rows were removed due to missing or invalid data.\n\n"))
+    }
+
     print(refiner_model_rv())
   })
 

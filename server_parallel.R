@@ -112,6 +112,9 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
     # If subpopulation gender is "Male", filter_data expects "M". If "Female", expects "F". If "Combined", expects "Both".
     filter_gender_choice <- ifelse(gender == "Male", "M", ifelse(gender == "Female", "F", "Both"))
 
+    # Store original row count before filtering
+    original_rows_count <- nrow(data)
+
     filtered_data_for_refiner <- filter_data(data,
                                  gender_choice = filter_gender_choice, # Use the derived gender_choice
                                  age_min = age_min,
@@ -133,6 +136,9 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
       stop(paste("No data found for subpopulation:", label, "after filtering."))
     }
     
+    # Calculate the number of removed rows after filtering
+    removed_rows_count <- original_rows_count - nrow(filtered_data_for_refiner)
+
     # Run the refineR model
     model <- refineR::findRI(Data = filtered_data_for_refiner[[col_value]],
                              NBootstrap = nbootstrap_value,
@@ -161,6 +167,7 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
       label = label,
       model = model, # Keep full model for individual summary/plot
       raw_data = raw_subpopulation_data, # Store the raw data for density plots
+      removed_rows = removed_rows_count,
       age_min = age_min,
       age_max = age_max,
       ri_low_fulldata = ri_low_fulldata,
@@ -333,7 +340,8 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
           `CI Upper Limit (LowerCI)` = round(result$ci_high_low, 3),
           `CI Upper Limit (UpperCI)` = round(result$ci_high_high, 3),
           Model = input$parallel_model_choice,
-          Bootstraps = input$parallel_nbootstrap_speed
+          Bootstraps = input$parallel_nbootstrap_speed,
+          `Removed Rows` = result$removed_rows
         )
         
         # Add the new row to our list of rows
@@ -624,6 +632,7 @@ output$combined_dumbbell_plot <- renderPlot({
         ci_high_high <- r$ci_high_high
         
         cat(paste0("Subpopulation: ", r$label, "\n"))
+        cat(paste0("  Rows Removed: ", r$removed_rows, "\n"))
         cat(paste0("  Estimated RI Lower Limit: ", round(ri_low, 3), "\n"))
         cat(paste0("  Confidence Interval for Lower Limit: [", round(ci_low_low, 3), ", ", round(ci_low_high, 3), "]\n"))
         cat(paste0("  Estimated RI Upper Limit: ", round(ri_high, 3), "\n"))
@@ -689,6 +698,7 @@ output$combined_dumbbell_plot <- renderPlot({
           output[[output_id_summary]] <- renderPrint({
               req(model)
               cat("--- RefineR Summary for ", input$parallel_col_value, " (Gender: ", gender_part, ", Age: ", age_range_part, ") ---\n")
+              cat(paste0("Rows Removed: ", result$removed_rows, "\n\n"))
               # Print the model summary, which uses the default `fullDataEst` point estimate
               print(model)
           })

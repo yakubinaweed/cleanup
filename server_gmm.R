@@ -305,6 +305,9 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
             dplyr::select(Value = !!value_col_sym, Age = !!age_col_sym)
         }
         
+        # Store the initial number of rows before cleaning
+        original_rows_count <- nrow(gmm_data)
+        
         # --- UPDATED: Data Cleaning Steps ---
         # Convert Value and Age columns to numeric, coercing non-numeric values to NA
         gmm_data <- gmm_data %>%
@@ -314,6 +317,9 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
           ) %>%
           # Remove any rows where either the Value or Age column is NA
           na.omit()
+        
+        # Calculate the number of rows removed during the cleaning step
+        removed_rows_count <- original_rows_count - nrow(gmm_data)
   
         if (nrow(gmm_data) == 0) {
           message_rv(list(text = "No complete rows for GMM after data cleaning and NA removal. Check your data or selections.", type = "error"))
@@ -447,7 +453,7 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
         ))
   
         if (nrow(combined_clustered_data) > 0) {
-          gmm_processed_data_rv(list(bic = combined_clustered_data))
+          gmm_processed_data_rv(list(bic = combined_clustered_data, removed_rows = removed_rows_count))
           message_rv(list(text = "GMM analysis complete!", type = "success"))
         } else {
           message_rv(list(text = "No data available after GMM processing for plotting/summary.", type = "error"))
@@ -484,9 +490,9 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
   })
 
   output$gmm_results_ui <- renderUI({
-    plot_data_bic <- gmm_processed_data_rv()$bic
+    results <- gmm_processed_data_rv()
 
-    if (is.null(plot_data_bic) || nrow(plot_data_bic) == 0) {
+    if (is.null(results) || nrow(results$bic) == 0) {
       return(NULL)
     }
 
@@ -554,14 +560,21 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
   })  
 
  output$gmm_summary_output_bic <- renderPrint({
-    plot_data <- gmm_processed_data_rv()$bic
-    models <- gmm_models_bic_rv()
-    
-    if (is.null(plot_data) || nrow(plot_data) == 0) {
+    results <- gmm_processed_data_rv()
+
+    if (is.null(results) || nrow(results$bic) == 0) {
       return("No GMM analysis results to display.")
     }
 
     cat("--- GMM Analysis Summary (BIC Criterion) ---\n")
+    
+    # Print the number of rows removed
+    if (!is.null(results$removed_rows)) {
+      cat(paste0("Note: ", results$removed_rows, " rows were removed due to missing data.\n"))
+    }
+    
+    plot_data <- results$bic
+    models <- gmm_models_bic_rv()
     
     if (!is.null(models$combined) && !inherits(models$combined, "try-error")) {
         cat("\n--- Combined Subpopulations ---\n")
