@@ -140,20 +140,56 @@ ui <- navbarPage(
     sidebarLayout(
       sidebarPanel(
         style = "padding-right: 15px;",
-        p("Enter one or more age ranges for each gender below, separated by commas.
-          Example: 0-10, 10-20, 20-30"),
-        textAreaInput(inputId = "male_age_ranges",
-                      label = "Male Age Ranges:",
-                      rows = 3,
-                      placeholder = "e.g., 0-10, 10-20"),
-        textAreaInput(inputId = "female_age_ranges",
-                      label = "Female Age Ranges:",
-                      rows = 3,
-                      placeholder = "e.g., 0-10, 10-20"),
-        textAreaInput(inputId = "combined_age_ranges",
-                      label = "Combined Age Ranges (Both Genders):",
-                      rows = 3,
-                      placeholder = "e.g., 0-10, 10-20"),
+        div(class = "card", style = "border: 1px solid #ccc; border-radius: 8px;",
+          div(class = "card-header", style = "background-color: #f7f7f7; padding: 10px; border-bottom: 1px solid #ccc; border-top-left-radius: 8px; border-top-right-radius: 8px;",
+            h5(
+              tooltip(
+                trigger = list("Parallel Analysis", bs_icon("info-circle")),
+                "This tool runs multiple RefineR analyses for different subpopulations simultaneously using parallel processing, significantly speeding up computation time."
+              ),
+              style = "margin-top: 0; margin-bottom: 0;"
+            )
+          ),
+          div(class = "card-body", style = "padding: 15px;",
+            textAreaInput(
+              inputId = "male_age_ranges",
+              label = tags$span(
+                tooltip(
+                  tags$span(bs_icon("info-circle")),
+                  "Enter age ranges for the male subpopulation. Use commas to separate multiple ranges."
+                ),
+                "Male Age Ranges:"
+              ),
+              rows = 1,
+              placeholder = "e.g., 0-10, 10-20"
+            ),
+            textAreaInput(
+              inputId = "female_age_ranges",
+              label = tags$span(
+                tooltip(
+                  tags$span(bs_icon("info-circle")),
+                  "Enter age ranges for the female subpopulation. Use commas to separate multiple ranges."
+                ),
+                "Female Age Ranges:"
+              ),
+              rows = 1,
+              placeholder = "e.g., 0-10, 10-20"
+            ),
+            textAreaInput(
+              inputId = "combined_age_ranges",
+              label = tags$span(
+                tooltip(
+                  tags$span(bs_icon("info-circle")),
+                  "Enter age ranges for the both subpopulations. Use commas to separate multiple ranges."
+                ),
+                "All Genders Age Ranges:"
+              ),
+              rows = 1,
+              placeholder = "e.g., 0-10, 10-20"
+            ),
+          ) # End of card-body
+        ), # End of card
+        
         fileInput(inputId = "parallel_file", label = "Upload Data (Excel File)", accept = c(".xlsx")),
         selectInput(inputId = "parallel_col_value", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "parallel_col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
@@ -166,9 +202,12 @@ ui <- navbarPage(
         numericInput("cores", "Number of Cores:", value = 2, min = 1),
         textInput(inputId = "parallel_unit_input", label = "Unit of Measurement", value = "", placeholder = "ex. g/L"),
         hr(),
-        actionButton("run_parallel_btn", "Run Parallel Analysis", class = "btn-primary"),
-        actionButton("reset_parallel_btn", "Reset", class = "btn-secondary"),
-        div(style = "margin-top: 15px;", uiOutput("parallel_message"))
+        # A new div to group and style the buttons
+        div(class = "parallel-buttons",
+            actionButton("run_parallel_btn", "Run Parallel Analysis", class = "btn-primary"),
+            actionButton("reset_parallel_btn", "Reset", class = "btn-secondary")
+        ),
+        uiOutput("parallel_message")
       ),
       mainPanel(
         # New tabsetPanel for organizing parallel results
