@@ -57,7 +57,7 @@ generate_refiner_plot <- function(model, title, xlab, ref_low, ref_high) {
   plot(model, showCI = TRUE, RIperc = c(0.025, 0.975), showPathol = FALSE,
        title = title,
        xlab = xlab)
-  
+
   # Get plot coordinates for annotations
   usr <- par("usr")
   y_max <- usr[4]
@@ -131,7 +131,7 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
     refiner_model_rv(NULL) # Reset the model
     plot_title_rv("") # Reset the title
     message_rv(list(type = "", text = ""))
-    
+
     # Explicitly reset the select inputs to prevent lingering values
     updateSelectInput(session, "col_value", choices = c("None" = ""), selected = "")
     updateSelectInput(session, "col_age", choices = c("None" = ""), selected = "")
@@ -159,7 +159,7 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
       }
     }
   })
-  
+
   # Reactive expression for filtered data
   # This filters the raw data based on user selections (gender and age range)
   filtered_data_reactive <- reactive({
@@ -167,20 +167,20 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
     if (input$col_value == "" || input$col_age == "") {
       return(NULL)
     }
-    
+
     # Use the filter_data function with a conditional check for the gender column
     filtered_data <- filter_data(data_reactive(), input$gender_choice, input$age_range[1], input$age_range[2], input$col_gender, input$col_age)
 
     # --- NEW: Data Cleaning Steps ---
     # Retrieve the name of the value column to be cleaned
     value_col_name <- input$col_value
-    
+
     # Check if the column exists in the filtered data before proceeding
     if (!value_col_name %in% names(filtered_data)) {
         message_rv(list(text = "Error: Selected value column not found after filtering.", type = "danger"))
         return(NULL)
     }
-    
+
     # Store original row count before cleaning
     original_rows_count <- nrow(filtered_data)
 
@@ -189,10 +189,10 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
       mutate(!!rlang::sym(value_col_name) := as.numeric(!!rlang::sym(value_col_name))) %>%
       # Remove any rows where the value column is now NA (either originally empty or non-numeric text)
       filter(!is.na(!!rlang::sym(value_col_name)))
-      
+
     # Calculate removed row count
     removed_rows_count <- original_rows_count - nrow(cleaned_data)
-    
+
     # Return the cleaned data frame and the removed rows count
     return(list(data = cleaned_data, removed_rows = removed_rows_count))
   })
@@ -207,18 +207,18 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
 
     filtered_result <- filtered_data_reactive()
     req(filtered_result)
-    
+
     filtered_data <- filtered_result$data
-    
+
     if (nrow(filtered_data) == 0) {
       message_rv(list(text = "Filtered dataset is empty. Please adjust your filtering criteria.", type = "danger"))
       return()
     }
-    
+
     # Disable button and change text when analysis starts
     shinyjs::disable("analyze_btn")
     shinyjs::runjs("$('#analyze_btn').text('Analyzing...');")
-    
+
     analysis_running_rv(TRUE)
     session$sendCustomMessage('analysisStatus', TRUE)
 
@@ -238,44 +238,44 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
         model_choice = input$model_choice # Get the selected model choice
       )
     })
-    
+
     refiner_model <- NULL
-    
+
     tryCatch({
       nbootstrap_value <- switch(isolated_inputs$nbootstrap_speed, "Fast" = 1, "Medium" = 50, "Slow" = 200, 1)
-      
+
       # Run the main RefineR function with the selected model
       refiner_model <- refineR::findRI(Data = filtered_data[[isolated_inputs$col_value]],
                                        NBootstrap = nbootstrap_value,
                                        model = isolated_inputs$model_choice)
-      
+
       if (is.null(refiner_model) || inherits(refiner_model, "try-error")) {
         stop("RefineR model could not be generated. Check your input data and parameters.")
       }
-      
+
       refiner_model_rv(refiner_model)
-      
+
       gender_text <- if (isolated_inputs$col_gender == "") "Combined" else paste0("Gender: ", isolated_inputs$gender_choice)
-      
+
       # Adjust plot title to include transformation model
       model_text <- switch(isolated_inputs$model_choice,
                            "BoxCox" = " (BoxCox Transformed)",
                            "modBoxCox" = " (modBoxCox Transformed)")
 
-      plot_title_rv(paste0("Estimated Reference Intervals for ", isolated_inputs$col_value, 
+      plot_title_rv(paste0("Estimated Reference Intervals for ", isolated_inputs$col_value,
                            model_text,
-                           " (", gender_text, 
+                           " (", gender_text,
                            ", Age: ", isolated_inputs$age_range[1], "-", isolated_inputs$age_range[2], ")"))
 
       # If auto-save is enabled, save the plot to the selected directory
       if (isolated_inputs$enable_directory && !is.null(selected_dir_reactive())) {
         filename <- generate_safe_filename("RefineR_Plot", selected_dir_reactive(), "png")
         png(filename, width = 800, height = 600)
-        
-        generate_refiner_plot(refiner_model, plot_title_rv(), 
+
+        generate_refiner_plot(refiner_model, plot_title_rv(),
                               sprintf("%s [%s]", isolated_inputs$col_value, isolated_inputs$unit_input),
                               isolated_inputs$ref_low, isolated_inputs$ref_high)
-        
+
         dev.off()
         message_rv(list(text = paste0("Plot saved to ", selected_dir_reactive()), type = "success"))
       }
@@ -298,10 +298,10 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
   # Renders the text summary reactively
   output$result_text <- renderPrint({
     req(refiner_model_rv())
-    
+
     # Get the results from the reactive expression
     filtered_result <- filtered_data_reactive()
-    
+
     # Print the number of rows removed
     if (!is.null(filtered_result$removed_rows)) {
       cat(paste0("Note: ", filtered_result$removed_rows, " rows were removed due to missing or invalid data.\n\n"))
@@ -316,8 +316,8 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
     refiner_model <- refiner_model_rv()
     req(refiner_model) # Requires the model to be present before plotting
     plot_title <- plot_title_rv()
-    
-    generate_refiner_plot(refiner_model, plot_title, 
+
+    generate_refiner_plot(refiner_model, plot_title,
                           sprintf("%s [%s]", input$col_value, input$unit_input),
                           input$ref_low, input$ref_high)
   })

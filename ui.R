@@ -59,13 +59,13 @@ ui <- navbarPage(
         selectInput(inputId = "col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "col_gender", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
         radioButtons(inputId = "nbootstrap_speed", label = "Select Computation Speed:", choices = c("Fast", "Medium", "Slow"), selected = "Fast", inline = TRUE),
-        
+
         # Radio buttons for model selection (removed "None" option)
         radioButtons(inputId = "model_choice", label = "Select Transformation Model:",
                      choices = c("BoxCox" = "BoxCox",
                                  "modBoxCox" = "modBoxCox"),
                      selected = "BoxCox", inline = TRUE), # Default to Box-Cox
-        
+
         # Action buttons for the analysis
         actionButton("analyze_btn", "Analyze", class = "btn-primary"),
         actionButton("reset_btn", "Reset File", class = "btn-secondary"),
@@ -73,7 +73,7 @@ ui <- navbarPage(
         div(style = "margin-top: 5px; display: flex; align-items: center; justify-content: flex-start; width: 100%;",
             prettySwitch(inputId = "enable_directory", label = "Auto-Save Graph", status = "success", fill = TRUE, inline = TRUE)
         ),
-        uiOutput("app_message"), # Placeholder for displaying app messages
+        uiOutput("main_message"), # Placeholder for displaying app messages
         hr(),
         # Inputs for manual reference limits and units for the plot
         numericInput("ref_low", "Reference Lower Limit:", value = NA),
@@ -132,7 +132,7 @@ ui <- navbarPage(
       )
     )
   ),
-  
+
   # Third tab for Parallel RefineR Analysis
   tabPanel(
     title = "Parallel Analysis",
@@ -198,7 +198,7 @@ ui <- navbarPage(
                      choices = c("BoxCox" = "BoxCox", "modBoxCox" = "modBoxCox"),
                      selected = "BoxCox", inline = TRUE),
         radioButtons(inputId = "parallel_nbootstrap_speed", label = "Select Computation Speed:", choices = c("Fast", "Medium", "Slow"), selected = "Fast", inline = TRUE),
-        
+
         # A new div to group and style the buttons
         div(class = "parallel-buttons",
             actionButton("run_parallel_btn", "Run Parallel Analysis", class = "btn-primary"),
@@ -213,7 +213,7 @@ ui <- navbarPage(
       mainPanel(
         # New tabsetPanel for organizing parallel results
         tabsetPanel(
-          tabPanel("Individual Results", 
+          tabPanel("Individual Results",
                    uiOutput("parallel_results_ui")
           ),
           tabPanel("Combined Summary",

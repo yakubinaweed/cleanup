@@ -20,7 +20,7 @@ source("server_gmm.R")
 source("server_parallel.R") # <--- ENSURE THIS LINE IS PRESENT AND CORRECT
 
 server <- function(input, output, session) {
-  
+
   # --- Reactive Values for State Management (Centralized) ---
   # These reactive values manage the application's state and are shared across all modules
   data_reactive <- reactiveVal(NULL)
@@ -29,8 +29,9 @@ server <- function(input, output, session) {
   gmm_transformation_details_rv <- reactiveVal(list(male_hgb_transformed = FALSE, female_hgb_transformed = FALSE))
   selected_dir_reactive <- reactiveVal(NULL)
   message_rv <- reactiveVal(list(type = "", text = ""))
+  main_message_rv <- reactiveVal(list(type = "", text = "")) # NEW: Dedicated reactive value for main analysis messages
   analysis_running_rv <- reactiveVal(FALSE)
-  
+
   # New reactive values for the parallel analysis tab
   parallel_data_rv <- reactiveVal(NULL)
   parallel_results_rv <- reactiveVal(list())
@@ -52,7 +53,22 @@ server <- function(input, output, session) {
                          "alert alert-secondary")
     div(class = class_name, msg$text)
   })
-  
+
+  # NEW: Dedicated renderUI for the Main Analysis tab
+  output$main_message <- renderUI({
+    msg <- main_message_rv()
+    if (is.null(msg) || msg$text == "") {
+      return(NULL)
+    }
+    class_name <- switch(msg$type,
+                         "error" = "alert alert-danger",
+                         "success" = "alert alert-success",
+                         "warning" = "alert alert-warning",
+                         "info" = "alert alert-info",
+                         "alert alert-secondary")
+    div(class = class_name, msg$text)
+  })
+
   output$parallel_message <- renderUI({
     msg <- parallel_message_rv()
     if (is.null(msg) || msg$text == "") {
@@ -83,9 +99,9 @@ server <- function(input, output, session) {
       message_rv(list(text = "Cannot switch tabs while an analysis is running. Please wait or reset the analysis.", type = "warning"))
     }
   })
-  
+
   # Call the modular server functions for each tab
-  mainServer(input, output, session, data_reactive, selected_dir_reactive, message_rv, analysis_running_rv)
+  mainServer(input, output, session, data_reactive, selected_dir_reactive, main_message_rv, analysis_running_rv) # UPDATED: Passes the new reactive value
   gmmServer(input, output, session, gmm_uploaded_data_rv, gmm_processed_data_rv, gmm_transformation_details_rv, message_rv, analysis_running_rv)
   parallelServer(input, output, session, parallel_data_rv, parallel_results_rv, parallel_message_rv, analysis_running_rv)
 }
