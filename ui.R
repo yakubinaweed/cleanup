@@ -7,12 +7,13 @@ library(shinyjs)
 library(shinyWidgets)
 library(shinyFiles)
 library(ggplot2)
+library(bsicons)
 
 ui <- navbarPage(
   title = "RefineR Reference Interval Estimation",
   id = "tabs",
   # Sets the visual theme and fonts for the Shiny app
-  theme = bs_theme(version = 4, base_font = font_google("Inter"), heading_font = font_google("Rethink Sans"), font_scale = 1.1, bootswatch = "default"),
+  theme = bs_theme(version = 5, base_font = font_google("Inter"), heading_font = font_google("Rethink Sans"), font_scale = 1.1, bootswatch = "default"),
 
   # First tab for the main RefineR analysis
   tabPanel(
@@ -59,7 +60,7 @@ ui <- navbarPage(
         selectInput(inputId = "col_gender", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
         radioButtons(inputId = "nbootstrap_speed", label = "Select Computation Speed:", choices = c("Fast", "Medium", "Slow"), selected = "Fast", inline = TRUE),
         
-        # New: Radio buttons for model selection (removed "None" option)
+        # Radio buttons for model selection (removed "None" option)
         radioButtons(inputId = "model_choice", label = "Select Transformation Model:",
                      choices = c("BoxCox" = "BoxCox",
                                  "modBoxCox" = "modBoxCox"),
@@ -91,25 +92,39 @@ ui <- navbarPage(
   tabPanel(
     title = "Subpopulation Detection (GMM)",
     useShinyjs(),
-    p("Gaussian Mixture Models aim to detect hidden subpopulations within your data based on a selected value and age. This tool employs the mclust package, which automatically selects the best model and number of components based on the Bayesian Information Criterion (BIC). For each detected subpopulation, estimated age ranges are provided directly from the model's characteristics, avoiding predefined bins.
-
-Before running the GMM, the data is preprocessed: the selected value's column is conditionally transformed using the Yeo-Johnson method if it shows significant skewness, and both the value and age columns are standardized (z-transformed)."),
     sidebarLayout(
       sidebarPanel(
-        fileInput(inputId = "gmm_file_upload", label = "Upload Data (Excel File)", accept = c(".xlsx")),
-        hr(),
-        # Dynamic inputs for selecting Value, Age, and Gender columns for GMM
-        selectInput(inputId = "gmm_value_col", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
-        selectInput(inputId = "gmm_age_col", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
-        selectInput(inputId = "gmm_gender_col", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
-        hr(),
-        # Action buttons for the GMM analysis
-        # New radio buttons for gender selection
-        uiOutput("gmm_gender_choice_ui"),
-        actionButton("run_gmm_analysis_btn", "Analyze", class = "btn-primary"),
-        actionButton("reset_gmm_analysis_btn", "Reset File", class = "btn-secondary"),
-        # Added a div with a top margin to create spacing
-        div(style = "margin-top: 15px;", uiOutput("app_message"))
+        # Start of card container
+        div(class = "card", style = "border: 1px solid #ccc; border-radius: 8px;",
+          # Card header with title
+          div(class = "card-header", style = "background-color: #f7f7f7; padding: 10px; border-bottom: 1px solid #ccc; border-top-left-radius: 8px; border-top-right-radius: 8px;",
+            # Applied tooltip to the h5 header
+            h5(
+              tooltip(
+                trigger = list("GMM Analysis", bs_icon("info-circle")),
+                "Gaussian Mixture Models (GMM) detect hidden subpopulations. The mclust package selects the best model and components using BIC. Data is preprocessed with Yeo-Johnson transformation (if skewed) and standardization for values and age."
+              ),
+              style = "margin-top: 0; margin-bottom: 0;"
+            )
+          ),
+          # Card body containing the existing sidebar content
+          div(class = "card-body", style = "padding: 15px;",
+            fileInput(inputId = "gmm_file_upload", label = "Upload Data (Excel File)", accept = c(".xlsx")),
+            hr(),
+            # Dynamic inputs for selecting Value, Age, and Gender columns for GMM
+            selectInput(inputId = "gmm_value_col", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
+            selectInput(inputId = "gmm_age_col", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
+            selectInput(inputId = "gmm_gender_col", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
+            hr(),
+            # Action buttons for the GMM analysis
+            # New radio buttons for gender selection
+            uiOutput("gmm_gender_choice_ui"),
+            actionButton("run_gmm_analysis_btn", "Analyze", class = "btn-primary"),
+            actionButton("reset_gmm_analysis_btn", "Reset File", class = "btn-secondary"),
+            # Added a div with a top margin to create spacing
+            div(style = "margin-top: 15px;", uiOutput("app_message"))
+          )
+        ) # End of card container
       ),
       mainPanel(
         # Renders the UI for GMM results dynamically
@@ -118,7 +133,7 @@ Before running the GMM, the data is preprocessed: the selected value's column is
     )
   ),
   
-  # New tab for Parallel RefineR Analysis
+  # Third tab for Parallel RefineR Analysis
   tabPanel(
     title = "Parallel Analysis",
     useShinyjs(),
