@@ -189,7 +189,7 @@ ui <- navbarPage(
             ),
           ) # End of card-body
         ), # End of card
-        
+        br(),
         fileInput(inputId = "parallel_file", label = "Upload Data (Excel File)", accept = c(".xlsx")),
         selectInput(inputId = "parallel_col_value", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "parallel_col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
@@ -197,17 +197,18 @@ ui <- navbarPage(
         radioButtons(inputId = "parallel_model_choice", label = "Select Transformation Model:",
                      choices = c("BoxCox" = "BoxCox", "modBoxCox" = "modBoxCox"),
                      selected = "BoxCox", inline = TRUE),
-        hr(),
         radioButtons(inputId = "parallel_nbootstrap_speed", label = "Select Computation Speed:", choices = c("Fast", "Medium", "Slow"), selected = "Fast", inline = TRUE),
-        numericInput("cores", "Number of Cores:", value = 2, min = 1),
-        textInput(inputId = "parallel_unit_input", label = "Unit of Measurement", value = "", placeholder = "ex. g/L"),
-        hr(),
+        
         # A new div to group and style the buttons
         div(class = "parallel-buttons",
             actionButton("run_parallel_btn", "Run Parallel Analysis", class = "btn-primary"),
-            actionButton("reset_parallel_btn", "Reset", class = "btn-secondary")
+            actionButton("reset_parallel_btn", "Reset File", class = "btn-secondary")
         ),
-        uiOutput("parallel_message")
+        div(style = "margin-top: 15px;", uiOutput("parallel_message")),
+
+        hr(),
+        numericInput("cores", "Number of Cores:", value = 2, min = 1),
+        textInput(inputId = "parallel_unit_input", label = "Unit of Measurement", value = "", placeholder = "ex. g/L")
       ),
       mainPanel(
         # New tabsetPanel for organizing parallel results
