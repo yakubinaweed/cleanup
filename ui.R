@@ -228,9 +228,11 @@ ui <- navbarPage(
         tabsetPanel(
           type = "pills", id = "my-nav",
           tabPanel("Individual Results",
+                   div(style = "margin-top: 15px;"),
                    uiOutput("parallel_results_ui")
           ),
           tabPanel("Combined Summary",
+                   div(style = "margin-top: 15px;"),
                    h4("Reference Intervals with Confidence Intervals"),
                    plotOutput("combined_dumbbell_plot"),
                    div(class = "spacing-div"),
