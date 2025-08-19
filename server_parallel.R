@@ -340,18 +340,14 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       if (result$status == "success") {
         # Create a new row for this subpopulation
         new_row <- tibble(
-          Subpopulation = result$label,
-          age_min = result$age_min,
-          age_max = result$age_max,
-          `RI Lower Limit` = round(result$ri_low_fulldata, 3),
-          `CI Lower Limit (LowerCI)` = round(result$ci_low_low, 3),
-          `CI Lower Limit (UpperCI)` = round(result$ci_low_high, 3),
-          `RI Upper Limit` = round(result$ri_high_fulldata, 3),
-          `CI Upper Limit (LowerCI)` = round(result$ci_high_low, 3),
-          `CI Upper Limit (UpperCI)` = round(result$ci_high_high, 3),
-          Model = input$parallel_model_choice,
-          Bootstraps = input$parallel_nbootstrap_speed,
-          `Removed Rows` = result$removed_rows
+          Gender = str_extract(result$label, "^\\w+"), # Extract gender from label
+          `Age Range` = paste0(result$age_min, "-", result$age_max),
+          `CI Lower (Lower)` = round(result$ci_low_low, 3),
+          `RI Lower` = round(result$ri_low_fulldata, 3),
+          `CI Lower (Upper)` = round(result$ci_low_high, 3),
+          `CI Upper (Lower)` = round(result$ci_high_low, 3),
+          `RI Upper` = round(result$ri_high_fulldata, 3),
+          `CI Upper (Upper)` = round(result$ci_high_high, 3)
         )
         
         # Add the new row to our list of rows
@@ -380,7 +376,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       ui_elements <- tagList(
         ui_elements,
         h4("Combined Summary of Reference Intervals"),
-        renderTable(combined_table_data),
+        renderTable(combined_table_data, striped = TRUE, bordered = TRUE),
         div(class = "spacing-div"),
         hr()
       )
@@ -419,7 +415,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
   })
 
   # UPDATED: Render the enhanced dumbbell plot with confidence intervals
-# UPDATED: Render the enhanced dumbbell plot with confidence intervals
 output$combined_dumbbell_plot <- renderPlot({
     plot_data <- combined_summary_table()
 
@@ -434,31 +429,31 @@ output$combined_dumbbell_plot <- renderPlot({
     }
 
     plot_data <- plot_data %>%
-      mutate(gender = str_extract(Subpopulation, "^\\w+"))
+      mutate(gender = str_extract(Gender, "^\\w+"))
 
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
 
-    ggplot2::ggplot(plot_data, ggplot2::aes(y = Subpopulation)) +
+    ggplot2::ggplot(plot_data, ggplot2::aes(y = `Age Range`)) +
       # Use geom_rect to create a shaded box for the entire CI range
-      ggplot2::geom_rect(ggplot2::aes(xmin = `CI Lower Limit (LowerCI)`,
-                                      xmax = `CI Upper Limit (UpperCI)`,
-                                      ymin = as.numeric(factor(Subpopulation)) - 0.25,
-                                      ymax = as.numeric(factor(Subpopulation)) + 0.25,
+      ggplot2::geom_rect(ggplot2::aes(xmin = `CI Lower (Lower)`,
+                                      xmax = `CI Upper (Upper)`,
+                                      ymin = as.numeric(factor(`Age Range`)) - 0.25,
+                                      ymax = as.numeric(factor(`Age Range`)) + 0.25,
                                       fill = gender),
                          alpha = 0.2, show.legend = FALSE) +
 
       # Add a horizontal line for the Reference Interval (RI) itself
-      ggplot2::geom_segment(ggplot2::aes(x = `RI Lower Limit`, xend = `RI Upper Limit`, y = Subpopulation, yend = Subpopulation, color = gender),
+      ggplot2::geom_segment(ggplot2::aes(x = `RI Lower`, xend = `RI Upper`, y = `Age Range`, yend = `Age Range`, color = gender),
                             linewidth = 1) +
 
       # Add points for the RI limits (the start and end of the RI line)
-      ggplot2::geom_point(ggplot2::aes(x = `RI Lower Limit`, color = gender), shape = 18, size = 4) +
-      ggplot2::geom_point(ggplot2::aes(x = `RI Upper Limit`, color = gender), shape = 18, size = 4) +
+      ggplot2::geom_point(ggplot2::aes(x = `RI Lower`, color = gender), shape = 18, size = 4) +
+      ggplot2::geom_point(ggplot2::aes(x = `RI Upper`, color = gender), shape = 18, size = 4) +
 
       ggplot2::labs(
         title = "Combined Reference Intervals with Confidence Intervals",
         x = unit_label,
-        y = "Subpopulation",
+        y = "Age Range",
         color = "Gender",
         fill = "Gender (95% CI)"
       ) +
@@ -576,25 +571,25 @@ output$combined_dumbbell_plot <- renderPlot({
     }
 
     plot_data <- plot_data %>%
-      mutate(gender = str_extract(Subpopulation, "^\\w+"))
+      mutate(gender = str_extract(Gender, "^\\w+"))
     
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
 
     ggplot2::ggplot(plot_data) +
       # Add shaded ribbon for the Confidence Interval
-      ggplot2::geom_ribbon(ggplot2::aes(x = age_min, xmax = age_max, ymin = `CI Lower Limit (LowerCI)`, ymax = `CI Upper Limit (UpperCI)`, fill = gender),
+      ggplot2::geom_ribbon(ggplot2::aes(x = age_min, xmax = age_max, ymin = `CI Lower (Lower)`, ymax = `CI Upper (Upper)`, fill = gender),
                            alpha = 0.2) +
       # Add horizontal line for the Reference Interval (lower limit)
-      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Lower Limit`, yend = `RI Lower Limit`, color = gender),
+      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Lower`, yend = `RI Lower`, color = gender),
                             linewidth = 1.2, linetype = "solid") +
       # Add horizontal line for the Reference Interval (upper limit)
-      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Upper Limit`, yend = `RI Upper Limit`, color = gender),
+      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Upper`, yend = `RI Upper`, color = gender),
                             linewidth = 1.2, linetype = "solid") +
       # Add a point at the end of each segment to mark the age range
-      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Lower Limit`, color = gender), size = 2) +
-      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Lower Limit`, color = gender), size = 2) +
-      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Upper Limit`, color = gender), size = 2) +
-      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Upper Limit`, color = gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Lower`, color = gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Lower`, color = gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Upper`, color = gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Upper`, color = gender), size = 2) +
       ggplot2::labs(
         title = "Age-Stratified Reference Intervals by Subpopulation",
         x = "Age",
