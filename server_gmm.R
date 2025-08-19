@@ -582,6 +582,7 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
         print(summary(models$combined))
 
         num_clusters <- models$combined$G
+        cat("\n")
         for (i in 1:num_clusters) {
             cat(paste0("Cluster ", i, ":\n"))
             cat(paste0("  Proportion: ", round(models$combined$parameters$pro[i], 3), "\n"))
@@ -613,7 +614,9 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
             print(summary(models$male))
 
             num_clusters <- models$male$G
+            cat("\n")
             for (i in 1:num_clusters) {
+                
                 cat(paste0("Cluster ", i, ":\n"))
                 cat(paste0("  Proportion: ", round(models$male$parameters$pro[i], 3), "\n"))
                 
@@ -647,6 +650,7 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
             print(summary(models$female))
 
             num_clusters <- models$female$G
+            cat("\n")
             for (i in 1:num_clusters) {
                 cat(paste0("Cluster ", i, ":\n"))
                 cat(paste0("  Proportion: ", round(models$female$parameters$pro[i], 3), "\n"))

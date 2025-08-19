@@ -642,6 +642,7 @@ output$combined_dumbbell_plot <- renderPlot({
         ci_high_high <- r$ci_high_high
         
         cat(paste0("Subpopulation: ", r$label, "\n"))
+        cat(paste0("  Sample Size ", nrow(r$raw_data), "\n"))
         cat(paste0("  Rows Removed: ", r$removed_rows, "\n"))
         cat(paste0("  Estimated RI Lower Limit: ", round(ri_low, 3), "\n"))
         cat(paste0("  Confidence Interval for Lower Limit: [", round(ci_low_low, 3), ", ", round(ci_low_high, 3), "]\n"))
@@ -708,7 +709,7 @@ output$combined_dumbbell_plot <- renderPlot({
           output[[output_id_summary]] <- renderPrint({
               req(model)
               cat("--- RefineR Summary for ", input$parallel_col_value, " (Gender: ", gender_part, ", Age: ", age_range_part, ") ---\n")
-              cat(paste0("Rows Removed: ", result$removed_rows, "\n"))
+              cat(paste0("Note: ", result$removed_rows, " rows were removed due to missing data.\n"))
               # Print the model summary, which uses the default `fullDataEst` point estimate
               print(model)
           })

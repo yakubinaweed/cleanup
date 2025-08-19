@@ -225,7 +225,6 @@ ui <- navbarPage(
                    div(class = "spacing-div"),
                    h3("Data Distributions (Density Plots)"),
                    plotOutput("combined_density_plot"),
-                   h3("Summary of Data Distributions (Box Plots)"),
                    plotOutput("combined_box_plot"),
                    div(class = "spacing-div"),
                    verbatimTextOutput("combined_summary")
