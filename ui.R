@@ -226,17 +226,18 @@ ui <- navbarPage(
       mainPanel(
         # New tabsetPanel for organizing parallel results
         tabsetPanel(
+          type = "pills", id = "my-nav",
           tabPanel("Individual Results",
                    uiOutput("parallel_results_ui")
           ),
           tabPanel("Combined Summary",
-                   h3("Reference Intervals with Confidence Intervals"),
+                   h4("Reference Intervals with Confidence Intervals"),
                    plotOutput("combined_dumbbell_plot"),
                    div(class = "spacing-div"),
-                   h3("Age-Stratified Reference Intervals"),
+                   h4("Age-Stratified Reference Intervals"),
                    plotOutput("combined_ri_plot"),
                    div(class = "spacing-div"),
-                   h3("Data Distributions (Density Plots)"),
+                   h4("Data Distributions (Density Plots)"),
                    plotOutput("combined_density_plot"),
                    plotOutput("combined_box_plot"),
                    div(class = "spacing-div"),
@@ -251,7 +252,7 @@ ui <- navbarPage(
   footer = tags$footer(
     HTML('© 2025 <a href="https://github.com/yakubinaweed/refineR-reference-interval" target="_blank">Naweed Yakubi</a> • All rights reserved.'),
     style = "
-      position: relative;
+      position: bottom;
       bottom: 0;
       width: 100%;
       text-align: center;
