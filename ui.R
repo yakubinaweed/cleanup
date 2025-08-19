@@ -114,7 +114,20 @@ ui <- navbarPage(
             # Dynamic inputs for selecting Value, Age, and Gender columns for GMM
             selectInput(inputId = "gmm_value_col", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
             selectInput(inputId = "gmm_age_col", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
-            selectInput(inputId = "gmm_gender_col", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
+            selectInput(
+              inputId = "gmm_gender_col",
+              label = tags$span(
+                tooltip(
+                  trigger = list(
+                    tags$span(bs_icon("info-circle")),
+                    "Select Column for Gender:"
+                  ),
+                  "Optional. If not selected, analysis will be run on combined data."
+                )
+              ),
+              choices = c("None" = ""),
+              selected = ""
+            ),
             hr(),
             # Action buttons for the GMM analysis
             # New radio buttons for gender selection
