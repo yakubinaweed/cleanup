@@ -433,6 +433,8 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
           `RI Lower` = result$ri_low_fulldata,
           `RI Upper` = result$ri_high_fulldata,
           `CI Lower (Lower)` = result$ci_low_low,
+          `CI Lower (Upper)` = result$ci_low_high,
+          `CI Upper (Lower)` = result$ci_high_low,
           `CI Upper (Upper)` = result$ci_high_high
         ))
       }
@@ -451,17 +453,33 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
 
     ggplot2::ggplot(plot_data, ggplot2::aes(y = reorder(label, age_min))) +
-      # Use geom_errorbarh to plot the CI
-      ggplot2::geom_errorbarh(ggplot2::aes(xmin = `CI Lower (Lower)`,
-                                           xmax = `CI Upper (Upper)`,
-                                           color = gender),
-                              height = 0.3, alpha = 0.3, linewidth = 2.5) +
+      # Use geom_segment to plot the CI as a single line
+      ggplot2::geom_segment(ggplot2::aes(x = `CI Lower (Lower)`,
+                                        xend = `CI Lower (Upper)`,
+                                        y = reorder(label, age_min),
+                                        yend = reorder(label, age_min),
+                                        color = gender),
+                            height = 0.3,
+                            linewidth = 10,
+                            alpha = 0.3,
+                            lineend = "square") +
+      
+      # Use geom_segment to plot the CI as a single line
+      ggplot2::geom_segment(ggplot2::aes(x = `CI Upper (Lower)`,
+                                        xend = `CI Upper (Upper)`,
+                                        y = reorder(label, age_min),
+                                        yend = reorder(label, age_min),
+                                        color = gender),
+                            height = 0.3,
+                            linewidth = 10,
+                            alpha = 0.3,
+                            lineend = "square") +
 
       # Use geom_errorbarh again to plot the RI
       ggplot2::geom_errorbarh(ggplot2::aes(xmin = `RI Lower`,
-                                           xmax = `RI Upper`,
-                                           color = gender),
-                              height = 0.1, linewidth = 1.2) +
+                                          xmax = `RI Upper`,
+                                          color = gender),
+                              height = 0.1, linewidth = 1.2) +            
 
       # Use geom_point to mark the RI limits
       ggplot2::geom_point(ggplot2::aes(x = `RI Lower`, color = gender), shape = 18, size = 4) +
@@ -469,7 +487,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       
       # Facet by gender
       ggplot2::facet_wrap(~ gender, ncol = 1, scales = "free_y", strip.position = "right") +
-
+      
       ggplot2::labs(
         title = "Estimated Reference Intervals with Confidence Intervals",
         x = unit_label,
@@ -515,6 +533,8 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
           `RI Lower` = result$ri_low_fulldata,
           `RI Upper` = result$ri_high_fulldata,
           `CI Lower (Lower)` = result$ci_low_low,
+          `CI Lower (Upper)` = result$ci_low_high,
+          `CI Upper (Lower)` = result$ci_high_low,
           `CI Upper (Upper)` = result$ci_high_high
         ))
       }
