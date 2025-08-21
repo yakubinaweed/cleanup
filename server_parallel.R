@@ -347,10 +347,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
           `CI Lower (Upper)` = round(result$ci_low_high, 3),
           `CI Upper (Lower)` = round(result$ci_high_low, 3),
           `RI Upper` = round(result$ri_high_fulldata, 3),
-          `CI Upper (Upper)` = round(result$ci_high_high, 3),
-          # Add the missing age_min and age_max columns
-          age_min = result$age_min,
-          age_max = result$age_max
+          `CI Upper (Upper)` = round(result$ci_high_high, 3)
         )
         
         # Add the new row to our list of rows
@@ -561,21 +558,38 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
 
   # UPDATED: Render the age-stratified reference interval plot
   output$combined_ri_plot <- renderPlot({
-    plot_data <- combined_summary_table()
-    
-    if (is.null(plot_data) || nrow(plot_data) == 0) {
+    results <- parallel_results_rv()
+
+    if (is.null(results) || length(results) == 0) {
       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
     }
-    
+
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
       paste0("Value [", input$parallel_unit_input, "]")
     } else {
       "Value"
     }
 
-    plot_data <- plot_data %>%
-      mutate(gender = str_extract(Gender, "^\\w+"))
-    
+    # Create a new data frame specifically for this plot
+    plot_data <- tibble()
+    for (result in results) {
+      if (result$status == "success") {
+        plot_data <- bind_rows(plot_data, tibble(
+          gender = str_extract(result$label, "^\\w+"),
+          age_min = result$age_min,
+          age_max = result$age_max,
+          `RI Lower` = result$ri_low_fulldata,
+          `RI Upper` = result$ri_high_fulldata,
+          `CI Lower (Lower)` = result$ci_low_low,
+          `CI Upper (Upper)` = result$ci_high_high
+        ))
+      }
+    }
+
+    if (nrow(plot_data) == 0) {
+      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
+    }
+
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
 
     ggplot2::ggplot(plot_data) +
