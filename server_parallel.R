@@ -506,7 +506,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       )
   })
 
-  # UPDATED: Render the age-stratified reference interval plot
   output$combined_ri_plot <- renderPlot({
     results <- parallel_results_rv()
 
@@ -545,9 +544,12 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
 
     ggplot2::ggplot(plot_data) +
-      # Add shaded ribbon for the Confidence Interval
-      ggplot2::geom_ribbon(ggplot2::aes(x = age_min, xmax = age_max, ymin = `CI Lower (Lower)`, ymax = `CI Upper (Upper)`, fill = gender),
-                           alpha = 0.2) +
+      # Add shaded rectangle for the Lower Confidence Interval
+      ggplot2::geom_rect(ggplot2::aes(xmin = age_min, xmax = age_max, ymin = `CI Lower (Lower)`, ymax = `CI Lower (Upper)`, fill = gender),
+                         alpha = 0.2) +
+      # Add shaded rectangle for the Upper Confidence Interval
+      ggplot2::geom_rect(ggplot2::aes(xmin = age_min, xmax = age_max, ymin = `CI Upper (Lower)`, ymax = `CI Upper (Upper)`, fill = gender),
+                         alpha = 0.2) +
       # Add horizontal line for the Reference Interval (lower limit)
       ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Lower`, yend = `RI Lower`, color = gender),
                             linewidth = 1.2, linetype = "solid") +
@@ -579,7 +581,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
         legend.position = "bottom"
       )
   })
-  
+    
   # UPDATED: Render the faceted density plot
   output$combined_density_plot <- renderPlot({
     plot_data <- combined_raw_data_rv()
