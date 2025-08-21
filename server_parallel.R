@@ -347,7 +347,10 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
           `CI Lower (Upper)` = round(result$ci_low_high, 3),
           `CI Upper (Lower)` = round(result$ci_high_low, 3),
           `RI Upper` = round(result$ri_high_fulldata, 3),
-          `CI Upper (Upper)` = round(result$ci_high_high, 3)
+          `CI Upper (Upper)` = round(result$ci_high_high, 3),
+          # Add the missing age_min and age_max columns
+          age_min = result$age_min,
+          age_max = result$age_max
         )
         
         # Add the new row to our list of rows
@@ -414,8 +417,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     }
   })
 
-  # UPDATED: Render the enhanced dumbbell plot with confidence intervals
-output$combined_dumbbell_plot <- renderPlot({
+  output$combined_dumbbell_plot <- renderPlot({
     plot_data <- combined_summary_table()
 
     if (is.null(plot_data) || nrow(plot_data) == 0) {
@@ -457,6 +459,7 @@ output$combined_dumbbell_plot <- renderPlot({
         color = "Gender",
         fill = "Gender (95% CI)"
       ) +
+      ggplot2::facet_wrap(~gender, ncol = 1) +
       ggplot2::theme_minimal() +
       ggplot2::scale_color_manual(values = gender_colors) +
       ggplot2::scale_fill_manual(values = gender_colors) +
