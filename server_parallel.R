@@ -489,7 +489,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       ggplot2::labs(
         title = "Estimated Reference Intervals with Confidence Intervals",
         x = unit_label,
-        y = NULL, # Remove y-axis label
+        y = NULL,
         color = "Gender"
       ) +
       ggplot2::scale_color_manual(values = gender_colors, name = "Gender") +
@@ -502,7 +502,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
         strip.text = ggplot2::element_text(size = 12, face = "bold", color = "black"),
         legend.title = ggplot2::element_text(size = 12, face = "bold"),
         legend.text = ggplot2::element_text(size = 10),
-        legend.position = "bottom"
+        legend.position = "none"
       )
   })
 
