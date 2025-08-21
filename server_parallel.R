@@ -459,7 +459,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
                                         y = reorder(label, age_min),
                                         yend = reorder(label, age_min),
                                         color = gender),
-                            height = 0.3,
                             linewidth = 10,
                             alpha = 0.3,
                             lineend = "square") +
@@ -470,7 +469,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
                                         y = reorder(label, age_min),
                                         yend = reorder(label, age_min),
                                         color = gender),
-                            height = 0.3,
                             linewidth = 10,
                             alpha = 0.3,
                             lineend = "square") +
