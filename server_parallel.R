@@ -415,9 +415,30 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
   })
 
   output$combined_dumbbell_plot <- renderPlot({
-    plot_data <- combined_summary_table()
+    results <- parallel_results_rv()
+    
+    if (is.null(results) || length(results) == 0) {
+      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
+    }
+    
+    # Create a new data frame specifically for this plot
+    plot_data <- tibble()
+    for (result in results) {
+      if (result$status == "success") {
+        plot_data <- bind_rows(plot_data, tibble(
+          gender = str_extract(result$label, "^\\w+"),
+          label = result$label,
+          age_min = result$age_min,
+          age_max = result$age_max,
+          `RI Lower` = result$ri_low_fulldata,
+          `RI Upper` = result$ri_high_fulldata,
+          `CI Lower (Lower)` = result$ci_low_low,
+          `CI Upper (Upper)` = result$ci_high_high
+        ))
+      }
+    }
 
-    if (is.null(plot_data) || nrow(plot_data) == 0) {
+    if (nrow(plot_data) == 0) {
       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
     }
 
@@ -427,39 +448,110 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       "Value"
     }
 
-    plot_data <- plot_data %>%
-      mutate(gender = str_extract(Gender, "^\\w+"))
+    gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
+
+    ggplot2::ggplot(plot_data, ggplot2::aes(y = reorder(label, age_min))) +
+      # Use geom_errorbarh to plot the CI
+      ggplot2::geom_errorbarh(ggplot2::aes(xmin = `CI Lower (Lower)`,
+                                           xmax = `CI Upper (Upper)`,
+                                           color = gender),
+                              height = 0.3, alpha = 0.3, linewidth = 2.5) +
+
+      # Use geom_errorbarh again to plot the RI
+      ggplot2::geom_errorbarh(ggplot2::aes(xmin = `RI Lower`,
+                                           xmax = `RI Upper`,
+                                           color = gender),
+                              height = 0.1, linewidth = 1.2) +
+
+      # Use geom_point to mark the RI limits
+      ggplot2::geom_point(ggplot2::aes(x = `RI Lower`, color = gender), shape = 18, size = 4) +
+      ggplot2::geom_point(ggplot2::aes(x = `RI Upper`, color = gender), shape = 18, size = 4) +
+      
+      # Facet by gender
+      ggplot2::facet_wrap(~ gender, ncol = 1, scales = "free_y", strip.position = "right") +
+
+      ggplot2::labs(
+        title = "Estimated Reference Intervals with Confidence Intervals",
+        x = unit_label,
+        y = NULL, # Remove y-axis label
+        color = "Gender"
+      ) +
+      ggplot2::scale_color_manual(values = gender_colors, name = "Gender") +
+      ggplot2::theme_minimal() +
+      ggplot2::theme(
+        plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
+        axis.title.x = ggplot2::element_text(size = 14, margin = ggplot2::margin(t = 10)),
+        axis.text = ggplot2::element_text(size = 12),
+        strip.background = ggplot2::element_rect(fill = "grey95", color = NA),
+        strip.text = ggplot2::element_text(size = 12, face = "bold", color = "black"),
+        legend.title = ggplot2::element_text(size = 12, face = "bold"),
+        legend.text = ggplot2::element_text(size = 10),
+        legend.position = "bottom"
+      )
+  })
+
+  # UPDATED: Render the age-stratified reference interval plot
+  output$combined_ri_plot <- renderPlot({
+    results <- parallel_results_rv()
+
+    if (is.null(results) || length(results) == 0) {
+      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
+    }
+
+    unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
+      paste0("Value [", input$parallel_unit_input, "]")
+    } else {
+      "Value"
+    }
+
+    # Create a new data frame specifically for this plot
+    plot_data <- tibble()
+    for (result in results) {
+      if (result$status == "success") {
+        plot_data <- bind_rows(plot_data, tibble(
+          gender = str_extract(result$label, "^\\w+"),
+          age_min = result$age_min,
+          age_max = result$age_max,
+          `RI Lower` = result$ri_low_fulldata,
+          `RI Upper` = result$ri_high_fulldata,
+          `CI Lower (Lower)` = result$ci_low_low,
+          `CI Upper (Upper)` = result$ci_high_high
+        ))
+      }
+    }
+
+    if (nrow(plot_data) == 0) {
+      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
+    }
 
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
 
-    ggplot2::ggplot(plot_data, ggplot2::aes(y = `Age Range`)) +
-      # Use geom_rect to create a shaded box for the entire CI range
-      ggplot2::geom_rect(ggplot2::aes(xmin = `CI Lower (Lower)`,
-                                      xmax = `CI Upper (Upper)`,
-                                      ymin = as.numeric(factor(`Age Range`)) - 0.25,
-                                      ymax = as.numeric(factor(`Age Range`)) + 0.25,
-                                      fill = gender),
-                         alpha = 0.2, show.legend = FALSE) +
-
-      # Add a horizontal line for the Reference Interval (RI) itself
-      ggplot2::geom_segment(ggplot2::aes(x = `RI Lower`, xend = `RI Upper`, y = `Age Range`, yend = `Age Range`, color = gender),
-                            linewidth = 1) +
-
-      # Add points for the RI limits (the start and end of the RI line)
-      ggplot2::geom_point(ggplot2::aes(x = `RI Lower`, color = gender), shape = 18, size = 4) +
-      ggplot2::geom_point(ggplot2::aes(x = `RI Upper`, color = gender), shape = 18, size = 4) +
-
+    ggplot2::ggplot(plot_data) +
+      # Add shaded ribbon for the Confidence Interval
+      ggplot2::geom_ribbon(ggplot2::aes(x = age_min, xmax = age_max, ymin = `CI Lower (Lower)`, ymax = `CI Upper (Upper)`, fill = gender),
+                           alpha = 0.2) +
+      # Add horizontal line for the Reference Interval (lower limit)
+      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Lower`, yend = `RI Lower`, color = gender),
+                            linewidth = 1.2, linetype = "solid") +
+      # Add horizontal line for the Reference Interval (upper limit)
+      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Upper`, yend = `RI Upper`, color = gender),
+                            linewidth = 1.2, linetype = "solid") +
+      # Add a point at the end of each segment to mark the age range
+      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Lower`, color = gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Lower`, color = gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Upper`, color = gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Upper`, color = gender), size = 2) +
       ggplot2::labs(
-        title = "Combined Reference Intervals with Confidence Intervals",
-        x = unit_label,
-        y = "Age Range",
+        title = "Age-Stratified Reference Intervals by Subpopulation",
+        x = "Age",
+        y = unit_label,
         color = "Gender",
         fill = "Gender (95% CI)"
       ) +
-      ggplot2::facet_wrap(~gender, ncol = 1) +
-      ggplot2::theme_minimal() +
+      ggplot2::scale_x_continuous(limits = c(0, 120)) +
       ggplot2::scale_color_manual(values = gender_colors) +
-      ggplot2::scale_fill_manual(values = gender_colors) +
+      ggplot2::scale_fill_manual(values = gender_colors, guide = "none") + # Hide legend for the fill
+      ggplot2::theme_minimal() +
       ggplot2::theme(
         plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
         axis.title = ggplot2::element_text(size = 14),
@@ -469,7 +561,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
         legend.position = "bottom"
       )
   })
-
+  
   # UPDATED: Render the faceted density plot
   output$combined_density_plot <- renderPlot({
     plot_data <- combined_raw_data_rv()
@@ -555,78 +647,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
         legend.text = ggplot2::element_text(size = 10)
       )
   })
-
-  # UPDATED: Render the age-stratified reference interval plot
-  output$combined_ri_plot <- renderPlot({
-    results <- parallel_results_rv()
-
-    if (is.null(results) || length(results) == 0) {
-      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
-    }
-
-    unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
-      paste0("Value [", input$parallel_unit_input, "]")
-    } else {
-      "Value"
-    }
-
-    # Create a new data frame specifically for this plot
-    plot_data <- tibble()
-    for (result in results) {
-      if (result$status == "success") {
-        plot_data <- bind_rows(plot_data, tibble(
-          gender = str_extract(result$label, "^\\w+"),
-          age_min = result$age_min,
-          age_max = result$age_max,
-          `RI Lower` = result$ri_low_fulldata,
-          `RI Upper` = result$ri_high_fulldata,
-          `CI Lower (Lower)` = result$ci_low_low,
-          `CI Upper (Upper)` = result$ci_high_high
-        ))
-      }
-    }
-
-    if (nrow(plot_data) == 0) {
-      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
-    }
-
-    gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
-
-    ggplot2::ggplot(plot_data) +
-      # Add shaded ribbon for the Confidence Interval
-      ggplot2::geom_ribbon(ggplot2::aes(x = age_min, xmax = age_max, ymin = `CI Lower (Lower)`, ymax = `CI Upper (Upper)`, fill = gender),
-                           alpha = 0.2) +
-      # Add horizontal line for the Reference Interval (lower limit)
-      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Lower`, yend = `RI Lower`, color = gender),
-                            linewidth = 1.2, linetype = "solid") +
-      # Add horizontal line for the Reference Interval (upper limit)
-      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Upper`, yend = `RI Upper`, color = gender),
-                            linewidth = 1.2, linetype = "solid") +
-      # Add a point at the end of each segment to mark the age range
-      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Lower`, color = gender), size = 2) +
-      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Lower`, color = gender), size = 2) +
-      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Upper`, color = gender), size = 2) +
-      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Upper`, color = gender), size = 2) +
-      ggplot2::labs(
-        title = "Age-Stratified Reference Intervals by Subpopulation",
-        x = "Age",
-        y = unit_label,
-        color = "Gender",
-        fill = "Gender (95% CI)"
-      ) +
-      ggplot2::scale_x_continuous(limits = c(0, 120)) +
-      ggplot2::scale_color_manual(values = gender_colors) +
-      ggplot2::scale_fill_manual(values = gender_colors, guide = "none") + # Hide legend for the fill
-      ggplot2::theme_minimal() +
-      ggplot2::theme(
-        plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
-        axis.title = ggplot2::element_text(size = 14),
-        axis.text = ggplot2::element_text(size = 12),
-        legend.title = ggplot2::element_text(size = 12, face = "bold"),
-        legend.text = ggplot2::element_text(size = 10),
-        legend.position = "bottom"
-      )
-  })
   
   # Renders the combined text summary for all successful subpopulations
   output$combined_summary <- renderPrint({
@@ -637,6 +657,12 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     }
     
     cat("--- Combined Summary of Reference Intervals ---\n\n")
+    
+    # Add a key for the table columns
+    cat("Table Column Key:\n")
+    cat("  RI Lower/Upper: The estimated Reference Interval limits.\n")
+    cat("  CI Lower (Lower)/CI Lower (Upper): The Confidence Interval for the RI Lower limit.\n")
+    cat("  CI Upper (Lower)/CI Upper (Upper): The Confidence Interval for the RI Upper limit.\n\n")
 
     has_successful_results <- FALSE
     for (r in results) {
