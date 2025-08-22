@@ -140,7 +140,7 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
     # Store the unfiltered (but age/gender-selected) data in the result for plotting
     raw_subpopulation_data <- cleaned_data %>%
                                     rename(Age = !!rlang::sym(col_age), Value = !!rlang::sym(col_value)) %>%
-                                    mutate(label = label) # Add the label column here
+                                    mutate(label = label, Gender_Standardized = filtered_data_for_refiner$Gender_Standardized) # Add the label and Gender_Standardized column here
     
     if (nrow(cleaned_data) == 0) {
       stop(paste("No data found for subpopulation:", label, "after cleaning."))
@@ -571,6 +571,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       # Add a point at the end of each segment to mark the age range
       ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Lower`, color = gender), size = 2) +
       ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Lower`, color = gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Upper`, color = gender), size = 2) +
       ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Upper`, color = gender), size = 2) +
       ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Upper`, color = gender), size = 2) +
       ggplot2::labs(
@@ -606,10 +607,10 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     # NEW: Filter raw data based on selected genders
     req(input$parallel_gender_filter)
     plot_data <- plot_data %>%
-      filter(Gender_Standardized %in% input$parallel_gender_filter)
-
+      filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
+    
     # Ensure there are at least two subpopulations to facet by
-    if (length(unique(plot_data$Gender_Standardized)) < 1 || length(unique(plot_data$label)) < 1) {
+    if (length(unique(plot_data$label)) < 1) {
        return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "Insufficient data to create a faceted plot.", size = 6, color = "grey50"))
     }
 
@@ -635,7 +636,17 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     ri_lines <- ri_lines %>%
         filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
 
-    ggplot2::ggplot(plot_data, ggplot2::aes(x = Value, fill = Gender_Standardized)) +
+    # NEW: Create a custom color palette for the fills
+    custom_colors <- c(
+      "Male" = "steelblue", 
+      "Female" = "darkred", 
+      "Combined" = "darkgreen"
+    )
+    
+    # Create a named vector for the fills based on unique labels
+    fill_colors <- setNames(custom_colors[str_extract(unique(plot_data$label), "^\\w+")], unique(plot_data$label))
+
+    ggplot2::ggplot(plot_data, ggplot2::aes(x = Value, fill = label)) +
       ggplot2::geom_density(alpha = 0.6) +
       ggplot2::geom_vline(data = ri_lines, ggplot2::aes(xintercept = ri_low), linetype = "dashed", color = "darkred", size = 1) +
       ggplot2::geom_vline(data = ri_lines, ggplot2::aes(xintercept = ri_high), linetype = "dashed", color = "darkred", size = 1) +
@@ -643,7 +654,8 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       ggplot2::labs(title = "Value Distribution by Subpopulation",
                     x = unit_label,
                     y = "Density",
-                    fill = "Gender") +
+                    fill = "Subpopulation") + # Changed fill label for clarity
+      ggplot2::scale_fill_manual(values = fill_colors) + # Use the custom fill colors
       ggplot2::theme_minimal() +
       ggplot2::theme(
         plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
@@ -651,7 +663,8 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
         axis.title = ggplot2::element_text(size = 14),
         axis.text = ggplot2::element_text(size = 12),
         legend.title = ggplot2::element_text(size = 12, face = "bold"),
-        legend.text = ggplot2::element_text(size = 10)
+        legend.text = ggplot2::element_text(size = 10),
+        legend.position = "bottom"
       )
   })
 
@@ -666,7 +679,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     # NEW: Filter raw data based on selected genders
     req(input$parallel_gender_filter)
     plot_data <- plot_data %>%
-      filter(Gender_Standardized %in% input$parallel_gender_filter)
+      filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
     
     if (nrow(plot_data) == 0) {
        return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for plotting for the selected genders.", size = 6, color = "grey50"))
@@ -677,16 +690,27 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     } else {
       "Value"
     }
+    
+    # NEW: Create a custom color palette for the fills
+    custom_colors <- c(
+      "Male" = "steelblue", 
+      "Female" = "darkred", 
+      "Combined" = "darkgreen"
+    )
+    
+    # Create a named vector for the fills based on unique labels
+    fill_colors <- setNames(custom_colors[str_extract(unique(plot_data$label), "^\\w+")], unique(plot_data$label))
 
-    ggplot2::ggplot(plot_data, ggplot2::aes(x = reorder(label, Value, FUN = median), y = Value, fill = Gender_Standardized)) +
+    ggplot2::ggplot(plot_data, ggplot2::aes(x = reorder(label, Value, FUN = median), y = Value, fill = label)) +
       ggplot2::geom_boxplot(alpha = 0.7, outlier.colour = "red", outlier.shape = 8) +
       ggplot2::labs(
         title = "Summary of Value Distribution by Subpopulation",
         x = "Subpopulation",
         y = unit_label,
-        fill = "Gender"
+        fill = "Subpopulation" # Changed fill label for clarity
       ) +
       ggplot2::coord_flip() +
+      ggplot2::scale_fill_manual(values = fill_colors) + # Use the custom fill colors
       ggplot2::theme_minimal() +
       ggplot2::theme(
         plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
