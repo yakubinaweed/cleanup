@@ -454,9 +454,9 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     }
 
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
-      paste0("Value [", input$parallel_unit_input, "]")
+      paste0(input$parallel_col_value, " [", input$parallel_unit_input, "]")
     } else {
-      "Value"
+      input$parallel_col_value
     }
 
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
@@ -496,7 +496,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       ggplot2::facet_wrap(~ gender, ncol = 1, scales = "free_y", strip.position = "right") +
       
       ggplot2::labs(
-        title = "Estimated Reference Intervals with Confidence Intervals",
+        title = "Estimated Reference Intervals by Subpopulation",
         x = unit_label,
         y = NULL,
         color = "Gender"
@@ -524,11 +524,11 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     }
 
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
-      paste0("Value [", input$parallel_unit_input, "]")
+      paste0(input$parallel_col_value, " [", input$parallel_unit_input, "]")
     } else {
-      "Value"
+      input$parallel_col_value
     }
-
+    
     # Create a new data frame specifically for this plot
     plot_data <- tibble()
     for (result in results) {
@@ -577,7 +577,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Upper`, color = gender), size = 2) +
       ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Upper`, color = gender), size = 2) +
       ggplot2::labs(
-        title = "Age-Stratified Reference Intervals by Subpopulation",
+        title = "Reference Intervals by Age and Gender",
         x = "Age",
         y = unit_label,
         color = "Gender",
@@ -617,9 +617,9 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     }
 
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
-      paste0("Value [", input$parallel_unit_input, "]")
+      paste0(input$parallel_col_value, " [", input$parallel_unit_input, "]")
     } else {
-      "Value"
+      input$parallel_col_value
     }
     
     # Prepare data for RI lines
@@ -653,7 +653,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       ggplot2::geom_vline(data = ri_lines, ggplot2::aes(xintercept = ri_low), linetype = "dashed", color = "darkred", size = 1) +
       ggplot2::geom_vline(data = ri_lines, ggplot2::aes(xintercept = ri_high), linetype = "dashed", color = "darkred", size = 1) +
       ggplot2::facet_wrap(~label, scales = "free_y") +
-      ggplot2::labs(title = "Value Distribution by Subpopulation",
+      ggplot2::labs(title = "Faceted Density Plot by Subpopulation",
                     x = unit_label,
                     y = "Density",
                     fill = "Subpopulation") + # Changed fill label for clarity
@@ -684,9 +684,9 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
     
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
-      paste0("Value [", input$parallel_unit_input, "]")
+      paste0(input$parallel_col_value, " [", input$parallel_unit_input, "]")
     } else {
-      "Value"
+      input$parallel_col_value
     }
     
     # Prepare data for RI lines
@@ -718,7 +718,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       ggplot2::geom_density(alpha = 0.6) +
       ggplot2::geom_vline(data = ri_lines, ggplot2::aes(xintercept = ri_low, color = label), linetype = "dashed", size = 1, show.legend = FALSE) +
       ggplot2::geom_vline(data = ri_lines, ggplot2::aes(xintercept = ri_high, color = label), linetype = "dashed", size = 1) +
-      ggplot2::labs(title = "Value Distribution by Subpopulation",
+      ggplot2::labs(title = "Density Plot of Value Distribution",
                     x = unit_label,
                     y = "Density",
                     fill = "Subpopulation") +
@@ -773,9 +773,9 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     plot_data$label <- factor(plot_data$label, levels = custom_order)
 
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
-      paste0("Value [", input$parallel_unit_input, "]")
+      paste0(input$parallel_col_value, " [", input$parallel_unit_input, "]")
     } else {
-      "Value"
+      input$parallel_col_value
     }
     
     # NEW: Create a custom color palette for the fills

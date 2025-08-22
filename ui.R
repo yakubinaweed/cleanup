@@ -251,7 +251,16 @@ ui <- navbarPage(
                    div(class = "spacing-div"),
                    plotOutput("single_density_plot"),
                    div(class = "spacing-div"),
-                   plotOutput("combined_box_plot"),
+                   card(
+                    plotOutput("combined_box_plot"),
+                    card_footer(
+                      "Plot Description:",
+                      tooltip(
+                        bs_icon("info-circle"),
+                        "The square in each box plot represents the middle 50% of the data, also known as the interquartile range (IQR). The line inside the box is the median, which is the midpoint of the HGB data. The whiskers extending from the box show the normal range of the data that is not considered an outlier. The red dots are outliers, which are values significantly different from the rest of their subpopulation and fall outside of the whiskers."
+                      )
+                    )
+                   ),
                    div(class = "spacing-div"),
                    verbatimTextOutput("combined_summary")
           )
