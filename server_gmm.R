@@ -43,11 +43,12 @@ apply_conditional_yeo_johnson <- function(data_vector, skewness_threshold = 0.5)
   return(list(transformed_data = transformed_data, transformation_applied = transformation_applied))
 }
 
-# Function to run GMM analysis using mclust, always with BIC.
+# Function to run GMM analysis using mclust, now with a dynamic modelNames parameter.
 # @param data_mat: A numeric matrix or data frame for clustering.
-# @param G_range: A range of component numbers to test (e.g., 2:5).
+# @param G_range: A range of component numbers to test.
+# @param modelNames: The specific model names to fit.
 # @return: An Mclust object representing the best-fit model.
-run_gmm_with_criterion <- function(data_mat, G_range = 2:10) {
+run_gmm_with_criterion <- function(data_mat, G_range, modelNames) {
   if (!is.matrix(data_mat) && !is.data.frame(data_mat)) {
     stop("Input data_mat must be a matrix or data frame for GMM analysis.")
   }
@@ -59,7 +60,7 @@ run_gmm_with_criterion <- function(data_mat, G_range = 2:10) {
   }
 
   tryCatch({
-    gmm_model <- mclust::Mclust(data_mat, G = G_range, modelNames = c("EII", "VII", "EEI", "VEI", "EVI", "VVI", "EEE", "EVE", "VEE", "VVV"))
+    gmm_model <- mclust::Mclust(data_mat, G = G_range, modelNames = modelNames)
     return(gmm_model)
   }, error = function(e) {
     warning(paste("GMM run failed:", e$message))
@@ -136,7 +137,7 @@ plot_value_age <- function(df, value_col_name, age_col_name) {
 }
 
 # A new, centralized function to run the GMM on a data subset
-run_gmm_analysis_on_subset <- function(data_subset, gender_label, value_col_name, age_col_name, message_rv, progress_increment) {
+run_gmm_analysis_on_subset <- function(data_subset, gender_label, value_col_name, age_col_name, message_rv, progress_increment, model_names, g_range) {
     if (nrow(data_subset) > 0) {
         yj_result <- apply_conditional_yeo_johnson(data_subset$Value)
         data_subset$Value_transformed <- yj_result$transformed_data
@@ -147,7 +148,7 @@ run_gmm_analysis_on_subset <- function(data_subset, gender_label, value_col_name
         incProgress(progress_increment, detail = paste("Running GMM for", gender_label, "data (BIC)..."))
         
         gmm_model <- tryCatch({
-            run_gmm_with_criterion(data_subset %>% dplyr::select(Value = Value_z, Age = Age_z))
+            run_gmm_with_criterion(data_subset %>% dplyr::select(Value = Value_z, Age = Age_z), G_range = g_range, modelNames = model_names)
         }, error = function(e) {
             message_rv(list(text = paste("Error running BIC GMM for", gender_label, "data:", e$message), type = "error"))
             NULL
@@ -219,6 +220,14 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
     }
   })
 
+  # === NEW: Render the manual model selection UI ===
+  output$gmm_manual_model_ui <- renderUI({
+    if (input$gmm_model_selection_choice == "Manual Selection") {
+      model_names <- c("EII", "VII", "EEI", "VEI", "EVI", "VVI", "EEE", "EVE", "VEE", "VVV")
+      selectInput("gmm_manual_model", "Select GMM Model:", choices = model_names, selected = "EII")
+    }
+  })
+
   # Observer for GMM analysis button
   # This is the core logic for the GMM tab, running the analysis with progress updates
   observeEvent(input$run_gmm_analysis_btn, {
@@ -264,6 +273,17 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
       req(input$gmm_gender_choice)
     }
 
+    # --- NEW: Check for manual model selection and validate ---
+    if (input$gmm_model_selection_choice == "Manual Selection") {
+      req(input$gmm_manual_model)
+      model_names_valid <- c("EII", "VII", "EEI", "VEI", "EVI", "VVI", "EEE", "EVE", "VEE", "VVV")
+      if (!input$gmm_manual_model %in% model_names_valid) {
+        message_rv(list(text = paste0("Error: Invalid GMM model name selected. Please choose from the list."), type = "error"))
+        return(NULL)
+      }
+    }
+
+
     if (analysis_running_rv()) {
       message_rv(list(text = "An analysis is already running. Please wait.", type = "warning"))
       return(NULL)
@@ -280,6 +300,20 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
     shinyjs::disable("run_gmm_analysis_btn")
     shinyjs::runjs("$('#run_gmm_analysis_btn').text('Analyzing...');")
     session$sendCustomMessage('analysisStatus', TRUE)
+
+    # Define the model names to be used based on the user's choice
+    model_names_to_use <- if (input$gmm_model_selection_choice == "Manual Selection") {
+      input$gmm_manual_model
+    } else {
+      c("EII", "VII", "EEI", "VEI", "EVI", "VVI", "EEE", "EVE", "VEE", "VVV")
+    }
+
+    # Define G_range based on the model selection choice
+    g_range_to_use <- if (input$gmm_model_selection_choice == "Manual Selection") {
+      2:10 # Use the wider range you previously requested.
+    } else {
+      2:10 # Use the wider range for auto-selection as well.
+    }
 
     tryCatch({
       withProgress(message = 'Running GMM Analysis', value = 0, {
@@ -369,7 +403,9 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
               value_col_name = value_col,
               age_col_name = age_col,
               message_rv = message_rv,
-              progress_increment = 0.6
+              progress_increment = 0.6,
+              model_names = model_names_to_use,
+              g_range = g_range_to_use
             )
             if (!is.null(results$combined$model)) {
               combined_gmm_model_bic <- results$combined$model
@@ -385,7 +421,9 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
               value_col_name = value_col,
               age_col_name = age_col,
               message_rv = message_rv,
-              progress_increment = 0.3
+              progress_increment = 0.3,
+              model_names = model_names_to_use,
+              g_range = g_range_to_use
             )
             if (!is.null(results$male$model)) {
               male_gmm_model_bic <- results$male$model
@@ -401,7 +439,9 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
               value_col_name = value_col,
               age_col_name = age_col,
               message_rv = message_rv,
-              progress_increment = 0.3
+              progress_increment = 0.3,
+              model_names = model_names_to_use,
+              g_range = g_range_to_use
             )
             if (!is.null(results$female$model)) {
               female_gmm_model_bic <- results$female$model
@@ -417,7 +457,9 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
             value_col_name = value_col,
             age_col_name = age_col,
             message_rv = message_rv,
-            progress_increment = 0.6
+            progress_increment = 0.6,
+            model_names = model_names_to_use,
+            g_range = g_range_to_use
           )
           if (!is.null(results$male$model)) {
             male_gmm_model_bic <- results$male$model
@@ -432,7 +474,9 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
             value_col_name = value_col,
             age_col_name = age_col,
             message_rv = message_rv,
-            progress_increment = 0.6
+            progress_increment = 0.6,
+            model_names = model_names_to_use,
+            g_range = g_range_to_use
           )
           if (!is.null(results$female$model)) {
             female_gmm_model_bic <- results$female$model

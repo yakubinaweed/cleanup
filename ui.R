@@ -1,3 +1,4 @@
+# ui.R
 library(shiny)
 library(bslib)
 library(refineR)
@@ -50,10 +51,27 @@ ui <- navbarPage(
     sidebarLayout(
       sidebarPanel(
         style = "padding-right: 15px;",
-        # User inputs for data filtering and analysis parameters
-        selectInput(inputId = "gender_choice", label = "Select Gender:", choices = c("Male" = "M", "Female" = "F", "Both" = "Both"), selected = "Both"),
-        sliderInput(inputId = "age_range", label = "Age Range:", min = 0, max = 100, value = c(0, 100), step = 1),
-        fileInput(inputId = "data_file", label = "Upload Data (Excel File)", accept = c(".xlsx")),
+        
+        # Correctly structured card for Main Analysis inputs
+        div(class = "card", style = "border: 1px solid #ccc; border-radius: 8px;",
+          div(class = "card-header", style = "background-color: #f7f7f7; padding: 10px; border-bottom: 1px solid #ccc; border-top-left-radius: 8px; border-top-right-radius: 8px;",
+            h5(
+              tooltip(
+                trigger = list("Main Analysis Inputs", bs_icon("info-circle")),
+                "This section contains the core inputs for filtering data and running the main RefineR analysis, including gender, age range, and model selection."
+              ),
+              style = "margin-top: 0; margin-bottom: 0;"
+            )
+          ),
+          div(class = "card-body", style = "padding: 15px;",
+            # User inputs for data filtering and analysis parameters
+            selectInput(inputId = "gender_choice", label = "Select Gender:", choices = c("Male" = "M", "Female" = "F", "Both" = "Both"), selected = "Both"),
+            sliderInput(inputId = "age_range", label = "Age Range:", min = 0, max = 100, value = c(0, 100), step = 1),
+            fileInput(inputId = "data_file", label = "Upload Data (Excel File)", accept = c(".xlsx"))
+          )
+        ),
+        br(),
+        # to help here 
         # Dynamic inputs for selecting data columns
         selectInput(inputId = "col_value", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
@@ -132,6 +150,18 @@ ui <- navbarPage(
             # Action buttons for the GMM analysis
             # New radio buttons for gender selection
             uiOutput("gmm_gender_choice_ui"),
+
+            # === NEW: Model selection choice ===
+            radioButtons(
+              inputId = "gmm_model_selection_choice",
+              label = "Select Model Option:",
+              choices = c("Auto-select", "Manual Selection"),
+              selected = "Auto-select"
+            ),
+
+            # === NEW: Dynamic UI for manual model selection ===
+            uiOutput("gmm_manual_model_ui"),
+
             actionButton("run_gmm_analysis_btn", "Analyze", class = "btn-primary"),
             actionButton("reset_gmm_analysis_btn", "Reset File", class = "btn-secondary"),
             # Added a div with a top margin to create spacing
