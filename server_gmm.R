@@ -47,7 +47,7 @@ apply_conditional_yeo_johnson <- function(data_vector, skewness_threshold = 0.5)
 # @param data_mat: A numeric matrix or data frame for clustering.
 # @param G_range: A range of component numbers to test (e.g., 2:5).
 # @return: An Mclust object representing the best-fit model.
-run_gmm_with_criterion <- function(data_mat, G_range = 2:5) {
+run_gmm_with_criterion <- function(data_mat, G_range = 2:10) {
   if (!is.matrix(data_mat) && !is.data.frame(data_mat)) {
     stop("Input data_mat must be a matrix or data frame for GMM analysis.")
   }
