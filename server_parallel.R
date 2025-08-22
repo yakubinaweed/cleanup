@@ -736,6 +736,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
   })
 
   # UPDATED: Render the grouped box plot
+  # UPDATED: Render the grouped box plot
   output$combined_box_plot <- renderPlot({
     plot_data <- combined_raw_data_rv()
     
@@ -749,9 +750,28 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
     
     if (nrow(plot_data) == 0) {
-       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for plotting for the selected genders.", size = 6, color = "grey50"))
+      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for plotting for the selected genders.", size = 6, color = "grey50"))
     }
     
+    # NEW: Define a custom order for the subpopulations
+    # This dynamically finds the labels for each gender group and combines them
+    # to create the desired plot order.
+    male_labels <- plot_data %>% dplyr::filter(grepl("Male", label)) %>% dplyr::arrange(label) %>% dplyr::pull(label) %>% unique()
+    female_labels <- plot_data %>% dplyr::filter(grepl("Female", label)) %>% dplyr::arrange(label) %>% dplyr::pull(label) %>% unique()
+    combined_labels <- plot_data %>% dplyr::filter(grepl("Combined", label)) %>% dplyr::arrange(label) %>% dplyr::pull(label) %>% unique()
+
+    # Combine them in the desired order
+    custom_order <- c(male_labels, female_labels, combined_labels)
+    
+    # Ensure all unique labels from the filtered data are in the custom order
+    remaining_labels <- setdiff(unique(plot_data$label), custom_order)
+    if(length(remaining_labels) > 0) {
+        custom_order <- c(custom_order, remaining_labels)
+    }
+    
+    # Convert the 'label' column to a factor with the new custom order
+    plot_data$label <- factor(plot_data$label, levels = custom_order)
+
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
       paste0("Value [", input$parallel_unit_input, "]")
     } else {
@@ -768,16 +788,16 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     # Create a named vector for the fills based on unique labels
     fill_colors <- setNames(custom_colors[str_extract(unique(plot_data$label), "^\\w+")], unique(plot_data$label))
 
-    ggplot2::ggplot(plot_data, ggplot2::aes(x = reorder(label, Value, FUN = median), y = Value, fill = label)) +
+    ggplot2::ggplot(plot_data, ggplot2::aes(x = label, y = Value, fill = label)) +
       ggplot2::geom_boxplot(alpha = 0.7, outlier.colour = "red", outlier.shape = 8) +
       ggplot2::labs(
         title = "Summary of Value Distribution by Subpopulation",
         x = "Subpopulation",
         y = unit_label,
-        fill = "Subpopulation" # Changed fill label for clarity
+        fill = "Subpopulation"
       ) +
       ggplot2::coord_flip() +
-      ggplot2::scale_fill_manual(values = fill_colors) + # Use the custom fill colors
+      ggplot2::scale_fill_manual(values = fill_colors) +
       ggplot2::theme_minimal() +
       ggplot2::theme(
         plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),

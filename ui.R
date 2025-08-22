@@ -249,7 +249,6 @@ ui <- navbarPage(
                    div(class = "spacing-div"),
                    plotOutput("combined_density_plot"),
                    div(class = "spacing-div"),
-                   h4("Overlapping Density Plot"),
                    plotOutput("single_density_plot"),
                    div(class = "spacing-div"),
                    plotOutput("combined_box_plot"),
