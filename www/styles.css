@@ -125,6 +125,8 @@
   color: #ccc !important; /* Changes text color to grey */
   background-color: #f8f9fa !important; /* Lighter background */
   cursor: not-allowed !important; /* Changes cursor to "not allowed" symbol */
+}
+
 /* Centered container for the gender selection options */
 .gender-filter-container {
   display: flex;
