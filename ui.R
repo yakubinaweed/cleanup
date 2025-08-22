@@ -248,6 +248,10 @@ ui <- navbarPage(
                    plotOutput("combined_ri_plot"),
                    div(class = "spacing-div"),
                    plotOutput("combined_density_plot"),
+                   div(class = "spacing-div"),
+                   h4("Overlapping Density Plot"),
+                   plotOutput("single_density_plot"),
+                   div(class = "spacing-div"),
                    plotOutput("combined_box_plot"),
                    div(class = "spacing-div"),
                    verbatimTextOutput("combined_summary")

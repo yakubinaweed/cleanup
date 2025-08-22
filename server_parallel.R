@@ -372,15 +372,18 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     
     ui_elements <- tagList()
     
-    if (!is.null(combined_table_data)) {
-      ui_elements <- tagList(
-        ui_elements,
-        h4("Combined Summary of Reference Intervals"),
-        renderTable(combined_table_data, striped = TRUE, bordered = TRUE),
-        div(class = "spacing-div"),
-        hr()
-      )
+    if (is.null(combined_table_data)) {
+      return(NULL)
     }
+    
+    ui_elements <- tagList(
+      ui_elements,
+      h4("Combined Summary of Reference Intervals"),
+      renderTable(combined_table_data, striped = TRUE, bordered = TRUE),
+      div(class = "spacing-div"),
+      hr()
+    )
+
 
     if (length(results) > 0) {
       # Then, render the individual plots and summaries
@@ -571,7 +574,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       # Add a point at the end of each segment to mark the age range
       ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Lower`, color = gender), size = 2) +
       ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Lower`, color = gender), size = 2) +
-      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Upper`, color = gender), size = 2) +
       ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Upper`, color = gender), size = 2) +
       ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Upper`, color = gender), size = 2) +
       ggplot2::labs(
@@ -660,6 +662,71 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       ggplot2::theme(
         plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
         strip.text = ggplot2::element_text(size = 12),
+        axis.title = ggplot2::element_text(size = 14),
+        axis.text = ggplot2::element_text(size = 12),
+        legend.title = ggplot2::element_text(size = 12, face = "bold"),
+        legend.text = ggplot2::element_text(size = 10),
+        legend.position = "bottom"
+      )
+  })
+
+  # NEW: Create single density plot
+  output$single_density_plot <- renderPlot({
+    plot_data <- combined_raw_data_rv()
+    results <- parallel_results_rv()
+    
+    if (is.null(plot_data) || nrow(plot_data) == 0) {
+      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for plotting.", size = 6, color = "grey50"))
+    }
+    
+    req(input$parallel_gender_filter)
+    plot_data <- plot_data %>%
+      filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
+    
+    unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
+      paste0("Value [", input$parallel_unit_input, "]")
+    } else {
+      "Value"
+    }
+    
+    # Prepare data for RI lines
+    ri_lines <- tibble()
+    for (result in results) {
+      if (result$status == "success") {
+        ri_lines <- bind_rows(ri_lines, tibble(
+          label = result$label,
+          ri_low = result$ri_low_fulldata,
+          ri_high = result$ri_high_fulldata
+        ))
+      }
+    }
+    
+    ri_lines <- ri_lines %>%
+        filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
+    
+    # Create a custom color palette for the fills
+    custom_colors <- c(
+      "Male" = "steelblue", 
+      "Female" = "darkred", 
+      "Combined" = "darkgreen"
+    )
+    
+    # Create a named vector for the fills based on unique labels
+    fill_colors <- setNames(custom_colors[str_extract(unique(plot_data$label), "^\\w+")], unique(plot_data$label))
+
+    ggplot2::ggplot(plot_data, ggplot2::aes(x = Value, fill = label)) +
+      ggplot2::geom_density(alpha = 0.6) +
+      ggplot2::geom_vline(data = ri_lines, ggplot2::aes(xintercept = ri_low, color = label), linetype = "dashed", size = 1, show.legend = FALSE) +
+      ggplot2::geom_vline(data = ri_lines, ggplot2::aes(xintercept = ri_high, color = label), linetype = "dashed", size = 1) +
+      ggplot2::labs(title = "Value Distribution by Subpopulation",
+                    x = unit_label,
+                    y = "Density",
+                    fill = "Subpopulation") +
+      ggplot2::scale_fill_manual(values = fill_colors) +
+      ggplot2::scale_color_manual(values = fill_colors, guide = "none") + # Ensure colors match fills but don't add to legend
+      ggplot2::theme_minimal() +
+      ggplot2::theme(
+        plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
         axis.title = ggplot2::element_text(size = 14),
         axis.text = ggplot2::element_text(size = 12),
         legend.title = ggplot2::element_text(size = 12, face = "bold"),
