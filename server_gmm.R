@@ -498,8 +498,17 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
 
     tagList(
       div(class = "output-box",
-          h4(class = "gmm-title", "BIC Criterion Results"),
-          plotOutput("gmm_bic_plots", height = "400px"),
+          card(
+            h4(class = "gmm-title", "BIC Criterion Results"),
+            plotOutput("gmm_bic_plots", height = "400px"),
+            card_footer(
+              "Plot Description:",
+              tooltip(
+                bs_icon("info-circle"),
+                "The primary purpose of this plot is to visually identify the optimal GMM model for the given dataset. A GMM analysis aims to cluster patient data into different subpopulations based on their Value and Age. The model with the highest BIC value is chosen as the best fit, as it balances model complexity (number of components) with how well the model explains the data."
+              )
+            )
+          ),
           div(class = "spacing-div"), # This adds spacing after the BIC plot
           plotOutput("plot_output_gmm_bic", height = "600px"),
           div(class = "spacing-div"), # This adds spacing before the summary
