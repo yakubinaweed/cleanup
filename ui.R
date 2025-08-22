@@ -233,6 +233,13 @@ ui <- navbarPage(
           ),
           tabPanel("Combined Summary",
                    div(style = "margin-top: 15px;"),
+                   checkboxGroupInput(
+                     inputId = "parallel_gender_filter",
+                     label = "Select Genders to Display:",
+                     choices = c("Male", "Female", "Combined"),
+                     selected = c("Male", "Female", "Combined"),
+                     inline = TRUE
+                   ),
                    plotOutput("combined_dumbbell_plot"),
                    div(class = "spacing-div"),
                    plotOutput("combined_ri_plot"),

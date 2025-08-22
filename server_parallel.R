@@ -414,6 +414,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     }
   })
 
+  # UPDATED: Render the combined dumbbell plot
   output$combined_dumbbell_plot <- renderPlot({
     results <- parallel_results_rv()
     
@@ -440,8 +441,13 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       }
     }
 
+    # NEW: Filter data based on selected genders
+    req(input$parallel_gender_filter)
+    plot_data <- plot_data %>%
+      filter(gender %in% input$parallel_gender_filter)
+    
     if (nrow(plot_data) == 0) {
-      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
+      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot for the selected genders.", size = 6, color = "grey50"))
     }
 
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
@@ -493,6 +499,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
         color = "Gender"
       ) +
       ggplot2::scale_color_manual(values = gender_colors, name = "Gender") +
+      ggplot2::scale_fill_manual(values = gender_colors, guide = "none") + # Hide legend for the fill
       ggplot2::theme_minimal() +
       ggplot2::theme(
         plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
@@ -536,9 +543,14 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
         ))
       }
     }
+    
+    # NEW: Filter data based on selected genders
+    req(input$parallel_gender_filter)
+    plot_data <- plot_data %>%
+      filter(gender %in% input$parallel_gender_filter)
 
     if (nrow(plot_data) == 0) {
-      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
+      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot for the selected genders.", size = 6, color = "grey50"))
     }
 
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
@@ -591,6 +603,11 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for plotting.", size = 6, color = "grey50"))
     }
     
+    # NEW: Filter raw data based on selected genders
+    req(input$parallel_gender_filter)
+    plot_data <- plot_data %>%
+      filter(Gender_Standardized %in% input$parallel_gender_filter)
+
     # Ensure there are at least two subpopulations to facet by
     if (length(unique(plot_data$Gender_Standardized)) < 1 || length(unique(plot_data$label)) < 1) {
        return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "Insufficient data to create a faceted plot.", size = 6, color = "grey50"))
@@ -613,8 +630,11 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
         ))
       }
     }
+    
+    # NEW: Filter RI lines to match selected genders
+    ri_lines <- ri_lines %>%
+        filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
 
-    # The raw data has a `Gender_Standardized` column, but `label` is the combined gender + age
     ggplot2::ggplot(plot_data, ggplot2::aes(x = Value, fill = Gender_Standardized)) +
       ggplot2::geom_density(alpha = 0.6) +
       ggplot2::geom_vline(data = ri_lines, ggplot2::aes(xintercept = ri_low), linetype = "dashed", color = "darkred", size = 1) +
@@ -641,6 +661,15 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     
     if (is.null(plot_data) || nrow(plot_data) == 0) {
       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for plotting.", size = 6, color = "grey50"))
+    }
+    
+    # NEW: Filter raw data based on selected genders
+    req(input$parallel_gender_filter)
+    plot_data <- plot_data %>%
+      filter(Gender_Standardized %in% input$parallel_gender_filter)
+    
+    if (nrow(plot_data) == 0) {
+       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for plotting for the selected genders.", size = 6, color = "grey50"))
     }
     
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
