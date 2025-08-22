@@ -152,3 +152,17 @@
 .gender-filter-container span {
   margin-right: 10px; /* Adjust this value for more or less space */
 }
+
+.summary-box {
+  border: 1px solid #ccc;
+  padding: 10px;
+  background-color: #f7f7f7;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.summary-box h5 {
+  margin: 0;
+  font-weight: bold;
+}

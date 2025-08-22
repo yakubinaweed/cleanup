@@ -375,13 +375,12 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     if (is.null(combined_table_data)) {
       return(NULL)
     }
-    
+
     ui_elements <- tagList(
       ui_elements,
-      h4("Combined Summary of Reference Intervals"),
+      div(class = "summary-box", h5("Summary Table of Reference Intervals")),
       renderTable(combined_table_data, striped = TRUE, bordered = TRUE),
-      div(class = "spacing-div"),
-      hr()
+      br()
     )
 
 
@@ -396,11 +395,9 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
           age_range_part <- gsub("[()]", "", label_parts[2])
 
           tagList(
-            h4(paste0(input$parallel_col_value, " (Gender: ", gender_part, ", Age: ", age_range_part, ")")),
             plotOutput(paste0("parallel_plot_", i)),
             # Add the summary output directly below the plot for this subpopulation
             verbatimTextOutput(paste0("parallel_summary_", i)),
-            div(class = "spacing-div"),
             hr()
           )
         } else {
@@ -528,7 +525,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     } else {
       input$parallel_col_value
     }
-    
+
     # Create a new data frame specifically for this plot
     plot_data <- tibble()
     for (result in results) {
