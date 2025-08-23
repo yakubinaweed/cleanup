@@ -1,7 +1,5 @@
 # server_parallel.R
 # This module contains the logic for the "Parallel Analysis" tab.
-# It handles data upload, defining subpopulations, running multiple refineR models,
-# and rendering the results for each subpopulation.
 
 # Load all necessary libraries.
 library(shiny)
@@ -12,8 +10,8 @@ library(shinyjs)
 library(shinyWidgets)
 library(bslib)
 library(ggplot2)
-library(future)       # Added for future-based parallel processing
-library(future.apply) # Added to use future_lapply
+library(future)
+library(future.apply)
 library(moments)
 
 # =========================================================================
@@ -31,47 +29,36 @@ guess_column <- function(cols_available, common_names) {
   return("")
 }
 
-# Function to filter data based on gender and age
+# Filters data based on gender, age, and column names
 filter_data <- function(data, gender_choice, age_min, age_max, col_gender, col_age) {
   if (col_age == "") {
     stop("Age column not found in data.")
   }
 
-  # First, apply age filtering
   filtered_data <- data %>%
     filter(!!rlang::sym(col_age) >= age_min & !!rlang::sym(col_age) <= age_max)
 
-  # Handle gender filtering
   if (col_gender != "" && col_gender %in% names(data)) {
-    # If a gender column is provided and exists, standardize it
     filtered_data <- filtered_data %>%
       mutate(Gender_Standardized = case_when(
         grepl("male|m|man|jongen(s)?|heren|mannelijk(e)?", !!rlang::sym(col_gender), ignore.case = TRUE) ~ "Male",
         grepl("female|f|vrouw(en)?|v|meisje(s)?|dame|mevr|vrouwelijke", !!rlang::sym(col_gender), ignore.case = TRUE) ~ "Female",
-        TRUE ~ "Other" # For values that don't match Male/Female
+        TRUE ~ "Other"
       ))
 
-    # Apply gender-specific filter if needed (i.e., not "Both" genders selected for analysis)
     if (gender_choice != "Both") {
       filtered_data <- filtered_data %>%
         filter(Gender_Standardized == case_when(
           gender_choice == "M" ~ "Male",
           gender_choice == "F" ~ "Female",
-          TRUE ~ NA_character_ # Should not happen if gender_choice is M or F
+          TRUE ~ NA_character_
         )) %>%
-        # Remove any rows where Gender_Standardized became NA due to a mismatch
         filter(!is.na(Gender_Standardized))
     }
   } else {
-    # If no gender column is selected OR found in the data:
-    # If the user requested 'Male' or 'Female' specific subpopulations, but no gender column
-    # is available to filter by, this is an invalid request for gender-specific data.
-    # In such cases, return an an empty data frame to indicate no data for this subpopulation.
     if (gender_choice %in% c("M", "F")) {
-      return(data[FALSE, ]) # Return an empty data frame with original columns
+      return(data[FALSE, ])
     } else {
-      # If 'Both' (i.e., 'Combined') was requested and no gender column is provided,
-      # simply assign 'Combined' as the gender for all data that passed age filtering.
       filtered_data <- filtered_data %>%
         mutate(Gender_Standardized = "Combined")
     }
@@ -80,7 +67,7 @@ filter_data <- function(data, gender_choice, age_min, age_max, col_gender, col_a
   return(filtered_data)
 }
 
-# A new, more robust function to parse age ranges
+# Parses the age ranges from text input
 parse_age_ranges <- function(ranges_text, gender) {
   ranges <- strsplit(ranges_text, ",")[[1]]
   parsed_ranges <- list()
@@ -101,7 +88,7 @@ parse_age_ranges <- function(ranges_text, gender) {
   return(parsed_ranges)
 }
 
-# This function is a wrapper for a single refineR analysis, now including bootstrap speed.
+# Wrapper for a single refineR analysis with data filtering and cleaning
 run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age, col_gender, model_choice, nbootstrap_value) {
   gender <- subpopulation$gender
   age_min <- subpopulation$age_min
@@ -109,48 +96,37 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
   label <- paste0(gender, " (", age_min, "-", age_max, ")")
 
   tryCatch({
-    # Determine the gender_choice string expected by filter_data based on the subpopulation's gender.
-    # If subpopulation gender is "Male", filter_data expects "M". If "Female", expects "F". If "Combined", expects "Both".
     filter_gender_choice <- ifelse(gender == "Male", "M", ifelse(gender == "Female", "F", "Both"))
 
     filtered_data_for_refiner <- filter_data(data,
-                                 gender_choice = filter_gender_choice, # Use the derived gender_choice
+                                 gender_choice = filter_gender_choice,
                                  age_min = age_min,
                                  age_max = age_max,
                                  col_gender = col_gender,
                                  col_age = col_age)
 
-    # --- NEW: Data Cleaning Steps for Parallel Analysis ---
-    # Retrieve the name of the value column to be cleaned
     value_col_name <- col_value
     
-    # Check if the column exists in the filtered data before proceeding
     if (!value_col_name %in% names(filtered_data_for_refiner)) {
       stop("Selected value column not found after filtering.")
     }
 
-    # Store original row count before cleaning
     original_rows_count <- nrow(filtered_data_for_refiner)
 
-    # Convert the value column to numeric, coercing non-numeric values to NA
     cleaned_data <- filtered_data_for_refiner %>%
       mutate(!!rlang::sym(value_col_name) := as.numeric(!!rlang::sym(value_col_name))) %>%
-      # Remove any rows where the value column is now NA
       filter(!is.na(!!rlang::sym(value_col_name)))
 
-    # Store the unfiltered (but age/gender-selected) data in the result for plotting
     raw_subpopulation_data <- cleaned_data %>%
                                     rename(Age = !!rlang::sym(col_age), Value = !!rlang::sym(col_value)) %>%
-                                    mutate(label = label, Gender_Standardized = filtered_data_for_refiner$Gender_Standardized) # Add the label and Gender_Standardized column here
+                                    mutate(label = label, Gender_Standardized = filtered_data_for_refiner$Gender_Standardized)
     
     if (nrow(cleaned_data) == 0) {
       stop(paste("No data found for subpopulation:", label, "after cleaning."))
     }
     
-    # Calculate the number of removed rows after filtering and cleaning
     removed_rows_count <- original_rows_count - nrow(cleaned_data)
 
-    # Determine the model based on user selection or automatic detection
     final_model_choice <- if (model_choice == "AutoSelect") {
       skew <- moments::skewness(cleaned_data[[value_col_name]], na.rm = TRUE)
       if (abs(skew) > 0.5) {
@@ -162,7 +138,6 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
       model_choice
     }
 
-    # Run the refineR model
     model <- refineR::findRI(Data = cleaned_data[[value_col_name]],
                              NBootstrap = nbootstrap_value,
                              model = final_model_choice)
@@ -171,9 +146,6 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
       stop(paste("RefineR model could not be generated for subpopulation:", label))
     }
     
-    # Get the reference interval values.
-    # The `fullDataEst` is used for the point estimate to align with the plot,
-    # and the `medianBS` is used to get the more robust confidence intervals.
     ri_data_fulldata <- getRI(model, RIperc = c(0.025, 0.975), pointEst = "fullDataEst")
     ri_data_median <- getRI(model, RIperc = c(0.025, 0.975), pointEst = "medianBS")
 
@@ -188,8 +160,8 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
 
     list(
       label = label,
-      model = model, # Keep full model for individual summary/plot
-      raw_data = raw_subpopulation_data, # Store the raw data for density plots
+      model = model,
+      raw_data = raw_subpopulation_data,
       removed_rows = removed_rows_count,
       age_min = age_min,
       age_max = age_max,
@@ -216,10 +188,10 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
 # Main server logic for the parallel tab
 parallelServer <- function(input, output, session, parallel_data_rv, parallel_results_rv, parallel_message_rv, analysis_running_rv) {
   
-  # Reactive value to store all raw data from successful analyses for plotting
+  # Reactive value to store all raw data from successful analyses
   combined_raw_data_rv <- reactiveVal(tibble())
   
-  # Observer for file upload
+  # Observer for file upload, updating column selectors
   observeEvent(input$parallel_file, {
     req(input$parallel_file)
     tryCatch({
@@ -246,7 +218,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       return()
     }
 
-    # Pre-run checks
+    # Stage 1: Pre-run checks and setup
     req(parallel_data_rv(), input$parallel_col_value, input$parallel_col_age)
     if (input$parallel_col_value == "" || input$parallel_col_age == "") {
       parallel_message_rv(list(text = "Please select the value and age columns.", type = "error"))
@@ -264,25 +236,22 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       return()
     }
 
-    # Prepare for analysis
     parallel_message_rv(list(text = "Starting parallel analysis...", type = "info"))
     analysis_running_rv(TRUE)
     shinyjs::disable("run_parallel_btn")
     shinyjs::runjs("$('#run_parallel_btn').text('Analyzing...');")
     session$sendCustomMessage('analysisStatus', TRUE)
 
-    # Capture input values outside of the future_lapply call
+    # Stage 2: Run the parallel analysis using `future_lapply`
     data_to_analyze <- parallel_data_rv()
     col_value_input <- input$parallel_col_value
     col_age_input <- input$parallel_col_age
     col_gender_input <- input$parallel_col_gender
     model_choice_input <- input$parallel_model_choice
-    nbootstrap_value_input <- input$parallel_nbootstrap_speed # Directly use slider value
+    nbootstrap_value_input <- input$parallel_nbootstrap_speed
 
-    # Set the parallelization plan based on user input for cores
     plan(multisession, workers = input$cores)
 
-    # Use future_lapply for parallel processing without a progress bar.
     results_list <- future_lapply(subpopulations, function(sub) {
       run_single_refiner_analysis(
         subpopulation = sub,
@@ -295,10 +264,9 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       )
     }, future.seed = TRUE)
 
-    # Update reactive values with results
+    # Stage 3: Process results and update reactive values
     parallel_results_rv(results_list)
 
-    # Gather all raw data from successful analyses for plotting
     raw_data_list <- lapply(results_list, function(r) {
       if (r$status == "success") {
         return(r$raw_data)
@@ -307,16 +275,14 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       }
     })
     
-    # Combine all data into a single tibble, ignoring NULLs
     combined_raw_data_rv(bind_rows(raw_data_list))
 
-    # Finalize analysis
+    # Stage 4: Finalize and update UI state
     analysis_running_rv(FALSE)
     shinyjs::enable("run_parallel_btn")
     shinyjs::runjs("$('#run_parallel_btn').text('Run Parallel Analysis');")
     session$sendCustomMessage('analysisStatus', FALSE)
 
-    # Check if all tasks failed
     if (all(sapply(parallel_results_rv(), function(r) r$status == "error"))) {
       parallel_message_rv(list(text = "Parallel analysis failed for all subpopulations.", type = "error"))
     } else {
@@ -328,14 +294,14 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
   observeEvent(input$reset_parallel_btn, {
     parallel_data_rv(NULL)
     parallel_results_rv(list())
-    combined_raw_data_rv(tibble()) # Reset the raw data reactive value
+    combined_raw_data_rv(tibble())
     parallel_message_rv(list(type = "", text = ""))
     shinyjs::reset("parallel_file")
     updateSelectInput(session, "parallel_col_value", choices = c("None" = ""), selected = "")
     updateSelectInput(session, "parallel_col_age", choices = c("None" = ""), selected = "")
     updateSelectInput(session, "parallel_col_gender", choices = c("None" = ""), selected = "")
     updateRadioButtons(session, "parallel_model_choice", selected = "BoxCox")
-    updateSliderInput(session, "parallel_nbootstrap_speed", value = 50) # Reset slider
+    updateSliderInput(session, "parallel_nbootstrap_speed", value = 50)
     updateTextAreaInput(session, "male_age_ranges", value = "")
     updateTextAreaInput(session, "female_age_ranges", value = "")
     updateTextAreaInput(session, "combined_age_ranges", value = "")
@@ -348,14 +314,12 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       return(NULL)
     }
 
-    # Initialize an empty list to store rows
     table_rows <- list()
 
     for (result in results) {
       if (result$status == "success") {
-        # Create a new row for this subpopulation
         new_row <- tibble(
-          Gender = str_extract(result$label, "^\\w+"), # Extract gender from label
+          Gender = str_extract(result$label, "^\\w+"),
           `Age Range` = paste0(result$age_min, "-", result$age_max),
           `CI Lower (Lower)` = round(result$ci_low_low, 3),
           `RI Lower` = round(result$ri_low_fulldata, 3),
@@ -365,24 +329,54 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
           `CI Upper (Upper)` = round(result$ci_high_high, 3)
         )
         
-        # Add the new row to our list of rows
         table_rows[[length(table_rows) + 1]] <- new_row
       }
     }
 
-    # Combine all rows into a single tibble
     if (length(table_rows) > 0) {
       bind_rows(table_rows)
     } else {
       NULL
     }
   })
+  
+  # Reactive expression to filter and prepare data for all combined plots
+  filtered_plot_data_rv <- reactive({
+    results <- parallel_results_rv()
+    if (is.null(results) || length(results) == 0) {
+      return(tibble())
+    }
+    
+    plot_data <- tibble()
+    for (result in results) {
+      if (result$status == "success") {
+        plot_data <- bind_rows(plot_data, tibble(
+          gender = str_extract(result$label, "^\\w+"),
+          label = result$label,
+          age_min = result$age_min,
+          age_max = result$age_max,
+          `RI Lower` = result$ri_low_fulldata,
+          `RI Upper` = result$ri_high_fulldata,
+          `CI Lower (Lower)` = result$ci_low_low,
+          `CI Lower (Upper)` = result$ci_low_high,
+          `CI Upper (Lower)` = result$ci_high_low,
+          `CI Upper (Upper)` = result$ci_high_high
+        ))
+      }
+    }
+    
+    # Filter data based on selected genders here
+    req(input$parallel_gender_filter)
+    plot_data <- plot_data %>%
+      filter(gender %in% input$parallel_gender_filter)
+    
+    return(plot_data)
+  })
 
-  # Dynamic UI to render the single combined table, followed by individual plots and summaries
+  # Dynamic UI for results
   output$parallel_results_ui <- renderUI({
     results <- parallel_results_rv()
     
-    # Render the combined table first, if it exists
     combined_table_data <- combined_summary_table()
     
     ui_elements <- tagList()
@@ -400,18 +394,15 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
 
 
     if (length(results) > 0) {
-      # Then, render the individual plots and summaries
       individual_elements <- lapply(seq_along(results), function(i) {
         result <- results[[i]]
         if (result$status == "success") {
-          # Split the label to get gender and age range parts
           label_parts <- unlist(strsplit(result$label, " "))
           gender_part <- label_parts[1]
           age_range_part <- gsub("[()]", "", label_parts[2])
 
           tagList(
             plotOutput(paste0("parallel_plot_", i)),
-            # Add the summary output directly below the plot for this subpopulation
             verbatimTextOutput(paste0("parallel_summary_", i)),
             hr()
           )
@@ -429,37 +420,9 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     }
   })
 
-  # UPDATED: Render the combined dumbbell plot
+  # Renders the combined dumbbell plot
   output$combined_dumbbell_plot <- renderPlot({
-    results <- parallel_results_rv()
-    
-    if (is.null(results) || length(results) == 0) {
-      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
-    }
-    
-    # Create a new data frame specifically for this plot
-    plot_data <- tibble()
-    for (result in results) {
-      if (result$status == "success") {
-        plot_data <- bind_rows(plot_data, tibble(
-          gender = str_extract(result$label, "^\\w+"),
-          label = result$label,
-          age_min = result$age_min,
-          age_max = result$age_max,
-          `RI Lower` = result$ri_low_fulldata,
-          `RI Upper` = result$ri_high_fulldata,
-          `CI Lower (Lower)` = result$ci_low_low,
-          `CI Lower (Upper)` = result$ci_low_high,
-          `CI Upper (Lower)` = result$ci_high_low,
-          `CI Upper (Upper)` = result$ci_high_high
-        ))
-      }
-    }
-
-    # NEW: Filter data based on selected genders
-    req(input$parallel_gender_filter)
-    plot_data <- plot_data %>%
-      filter(gender %in% input$parallel_gender_filter)
+    plot_data <- filtered_plot_data_rv()
     
     if (nrow(plot_data) == 0) {
       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot for the selected genders.", size = 6, color = "grey50"))
@@ -474,7 +437,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
 
     ggplot2::ggplot(plot_data, ggplot2::aes(y = reorder(label, age_min))) +
-      # Use geom_segment to plot the CI as a single line
       ggplot2::geom_segment(ggplot2::aes(x = `CI Lower (Lower)`,
                                         xend = `CI Lower (Upper)`,
                                         y = reorder(label, age_min),
@@ -484,7 +446,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
                             alpha = 0.3,
                             lineend = "square") +
       
-      # Use geom_segment to plot the CI as a single line
       ggplot2::geom_segment(ggplot2::aes(x = `CI Upper (Lower)`,
                                         xend = `CI Upper (Upper)`,
                                         y = reorder(label, age_min),
@@ -494,17 +455,14 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
                             alpha = 0.3,
                             lineend = "square") +
 
-      # Use geom_errorbarh again to plot the RI
       ggplot2::geom_errorbarh(ggplot2::aes(xmin = `RI Lower`,
                                           xmax = `RI Upper`,
                                           color = gender),
                               height = 0.1, linewidth = 1.2) +            
 
-      # Use geom_point to mark the RI limits
       ggplot2::geom_point(ggplot2::aes(x = `RI Lower`, color = gender), shape = 18, size = 4) +
       ggplot2::geom_point(ggplot2::aes(x = `RI Upper`, color = gender), shape = 18, size = 4) +
       
-      # Facet by gender
       ggplot2::facet_wrap(~ gender, ncol = 1, scales = "free_y", strip.position = "right") +
       
       ggplot2::labs(
@@ -514,7 +472,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
         color = "Gender"
       ) +
       ggplot2::scale_color_manual(values = gender_colors, name = "Gender") +
-      ggplot2::scale_fill_manual(values = gender_colors, guide = "none") + # Hide legend for the fill
+      ggplot2::scale_fill_manual(values = gender_colors, guide = "none") +
       ggplot2::theme_minimal() +
       ggplot2::theme(
         plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
@@ -528,11 +486,12 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       )
   })
 
+  # Renders the combined RI plot
   output$combined_ri_plot <- renderPlot({
-    results <- parallel_results_rv()
+    plot_data <- filtered_plot_data_rv()
 
-    if (is.null(results) || length(results) == 0) {
-      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot.", size = 6, color = "grey50"))
+    if (nrow(plot_data) == 0) {
+      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot for the selected genders.", size = 6, color = "grey50"))
     }
 
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
@@ -541,49 +500,17 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       input$parallel_col_value
     }
 
-    # Create a new data frame specifically for this plot
-    plot_data <- tibble()
-    for (result in results) {
-      if (result$status == "success") {
-        plot_data <- bind_rows(plot_data, tibble(
-          gender = str_extract(result$label, "^\\w+"),
-          age_min = result$age_min,
-          age_max = result$age_max,
-          `RI Lower` = result$ri_low_fulldata,
-          `RI Upper` = result$ri_high_fulldata,
-          `CI Lower (Lower)` = result$ci_low_low,
-          `CI Lower (Upper)` = result$ci_low_high,
-          `CI Upper (Lower)` = result$ci_high_low,
-          `CI Upper (Upper)` = result$ci_high_high
-        ))
-      }
-    }
-    
-    # NEW: Filter data based on selected genders
-    req(input$parallel_gender_filter)
-    plot_data <- plot_data %>%
-      filter(gender %in% input$parallel_gender_filter)
-
-    if (nrow(plot_data) == 0) {
-      return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot for the selected genders.", size = 6, color = "grey50"))
-    }
-
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
 
     ggplot2::ggplot(plot_data) +
-      # Add shaded rectangle for the Lower Confidence Interval
       ggplot2::geom_rect(ggplot2::aes(xmin = age_min, xmax = age_max, ymin = `CI Lower (Lower)`, ymax = `CI Lower (Upper)`, fill = gender),
                          alpha = 0.2) +
-      # Add shaded rectangle for the Upper Confidence Interval
       ggplot2::geom_rect(ggplot2::aes(xmin = age_min, xmax = age_max, ymin = `CI Upper (Lower)`, ymax = `CI Upper (Upper)`, fill = gender),
                          alpha = 0.2) +
-      # Add horizontal line for the Reference Interval (lower limit)
       ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Lower`, yend = `RI Lower`, color = gender),
                             linewidth = 1.2, linetype = "solid") +
-      # Add horizontal line for the Reference Interval (upper limit)
       ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Upper`, yend = `RI Upper`, color = gender),
                             linewidth = 1.2, linetype = "solid") +
-      # Add a point at the end of each segment to mark the age range
       ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Lower`, color = gender), size = 2) +
       ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Lower`, color = gender), size = 2) +
       ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Upper`, color = gender), size = 2) +
@@ -597,7 +524,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       ) +
       ggplot2::scale_x_continuous(limits = c(0, 120)) +
       ggplot2::scale_color_manual(values = gender_colors) +
-      ggplot2::scale_fill_manual(values = gender_colors, guide = "none") + # Hide legend for the fill
+      ggplot2::scale_fill_manual(values = gender_colors, guide = "none") +
       ggplot2::theme_minimal() +
       ggplot2::theme(
         plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
@@ -609,7 +536,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       )
   })
     
-  # UPDATED: Render the faceted density plot
+  # Renders the faceted density plot
   output$combined_density_plot <- renderPlot({
     plot_data <- combined_raw_data_rv()
     results <- parallel_results_rv()
@@ -618,12 +545,10 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for plotting.", size = 6, color = "grey50"))
     }
     
-    # NEW: Filter raw data based on selected genders
     req(input$parallel_gender_filter)
     plot_data <- plot_data %>%
       filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
     
-    # Ensure there are at least two subpopulations to facet by
     if (length(unique(plot_data$label)) < 1) {
        return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "Insufficient data to create a faceted plot.", size = 6, color = "grey50"))
     }
@@ -634,7 +559,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       input$parallel_col_value
     }
     
-    # Prepare data for RI lines
     ri_lines <- tibble()
     for (result in results) {
       if (result$status == "success") {
@@ -646,18 +570,15 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       }
     }
     
-    # NEW: Filter RI lines to match selected genders
     ri_lines <- ri_lines %>%
         filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
 
-    # NEW: Create a custom color palette for the fills
     custom_colors <- c(
       "Male" = "steelblue", 
       "Female" = "darkred", 
       "Combined" = "darkgreen"
     )
     
-    # Create a named vector for the fills based on unique labels
     fill_colors <- setNames(custom_colors[str_extract(unique(plot_data$label), "^\\w+")], unique(plot_data$label))
 
     ggplot2::ggplot(plot_data, ggplot2::aes(x = Value, fill = label)) +
@@ -668,8 +589,8 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       ggplot2::labs(title = "Faceted Density Plot by Subpopulation",
                     x = unit_label,
                     y = "Density",
-                    fill = "Subpopulation") + # Changed fill label for clarity
-      ggplot2::scale_fill_manual(values = fill_colors) + # Use the custom fill colors
+                    fill = "Subpopulation") +
+      ggplot2::scale_fill_manual(values = fill_colors) +
       ggplot2::theme_minimal() +
       ggplot2::theme(
         plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
@@ -682,7 +603,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       )
   })
 
-  # NEW: Create single density plot
+  # Renders a single density plot for all selected subpopulations
   output$single_density_plot <- renderPlot({
     plot_data <- combined_raw_data_rv()
     results <- parallel_results_rv()
@@ -701,7 +622,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       input$parallel_col_value
     }
     
-    # Prepare data for RI lines
     ri_lines <- tibble()
     for (result in results) {
       if (result$status == "success") {
@@ -716,14 +636,12 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     ri_lines <- ri_lines %>%
         filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
     
-    # Create a custom color palette for the fills
     custom_colors <- c(
       "Male" = "steelblue", 
       "Female" = "darkred", 
       "Combined" = "darkgreen"
     )
     
-    # Create a named vector for the fills based on unique labels
     fill_colors <- setNames(custom_colors[str_extract(unique(plot_data$label), "^\\w+")], unique(plot_data$label))
 
     ggplot2::ggplot(plot_data, ggplot2::aes(x = Value, fill = label)) +
@@ -735,7 +653,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
                     y = "Density",
                     fill = "Subpopulation") +
       ggplot2::scale_fill_manual(values = fill_colors) +
-      ggplot2::scale_color_manual(values = fill_colors, guide = "none") + # Ensure colors match fills but don't add to legend
+      ggplot2::scale_color_manual(values = fill_colors, guide = "none") +
       ggplot2::theme_minimal() +
       ggplot2::theme(
         plot.title = ggplot2::element_text(size = 18, face = "bold", hjust = 0.5),
@@ -747,8 +665,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       )
   })
 
-  # UPDATED: Render the grouped box plot
-  # UPDATED: Render the grouped box plot
+  # Renders the grouped box plot
   output$combined_box_plot <- renderPlot({
     plot_data <- combined_raw_data_rv()
     
@@ -756,7 +673,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for plotting.", size = 6, color = "grey50"))
     }
     
-    # NEW: Filter raw data based on selected genders
     req(input$parallel_gender_filter)
     plot_data <- plot_data %>%
       filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
@@ -765,23 +681,17 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for plotting for the selected genders.", size = 6, color = "grey50"))
     }
     
-    # NEW: Define a custom order for the subpopulations
-    # This dynamically finds the labels for each gender group and combines them
-    # to create the desired plot order.
     male_labels <- plot_data %>% dplyr::filter(grepl("Male", label)) %>% dplyr::arrange(label) %>% dplyr::pull(label) %>% unique()
     female_labels <- plot_data %>% dplyr::filter(grepl("Female", label)) %>% dplyr::arrange(label) %>% dplyr::pull(label) %>% unique()
     combined_labels <- plot_data %>% dplyr::filter(grepl("Combined", label)) %>% dplyr::arrange(label) %>% dplyr::pull(label) %>% unique()
 
-    # Combine them in the desired order
     custom_order <- c(male_labels, female_labels, combined_labels)
     
-    # Ensure all unique labels from the filtered data are in the custom order
     remaining_labels <- setdiff(unique(plot_data$label), custom_order)
     if(length(remaining_labels) > 0) {
         custom_order <- c(custom_order, remaining_labels)
     }
     
-    # Convert the 'label' column to a factor with the new custom order
     plot_data$label <- factor(plot_data$label, levels = custom_order)
 
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
@@ -790,14 +700,12 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       input$parallel_col_value
     }
     
-    # NEW: Create a custom color palette for the fills
     custom_colors <- c(
       "Male" = "steelblue", 
       "Female" = "darkred", 
       "Combined" = "darkgreen"
     )
     
-    # Create a named vector for the fills based on unique labels
     fill_colors <- setNames(custom_colors[str_extract(unique(plot_data$label), "^\\w+")], unique(plot_data$label))
 
     ggplot2::ggplot(plot_data, ggplot2::aes(x = label, y = Value, fill = label)) +
@@ -830,7 +738,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     
     cat("--- Combined Summary of Reference Intervals ---\n\n")
     
-    # Add a key for the table columns
     cat("Table Column Key:\n")
     cat("  RI Lower/Upper: The estimated Reference Interval limits.\n")
     cat("  CI Lower (Lower)/CI Lower (Upper): The Confidence Interval for the RI Lower limit.\n")
@@ -841,11 +748,9 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
       if (r$status == "success") {
         has_successful_results <- TRUE
         
-        # Use full data estimate for consistency with the plot
         ri_low <- r$ri_low_fulldata
         ri_high <- r$ri_high_fulldata
         
-        # Get the medianBS values for the CI summary
         ci_low_low <- r$ci_low_low
         ci_low_high <- r$ci_low_high
         ci_high_low <- r$ci_high_low
@@ -859,12 +764,9 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
         cat(paste0("  Estimated RI Upper Limit: ", round(ri_high, 3), "\n"))
         cat(paste0("  Confidence Interval for Upper Limit: [", round(ci_high_low, 3), ", ", round(ci_high_high, 3), "]\n"))
         
-        # New conditional check for model choice
         if(r$final_model != input$parallel_model_choice) {
-          # This case is when auto-select was chosen but the final model was different.
           cat(paste0("  Transformation Model: Auto-selected ", r$final_model, " (from user's '", input$parallel_model_choice, "' choice)\n"))
         } else {
-          # This case is when a specific model was chosen, or auto-select chose the same model.
           cat(paste0("  Transformation Model: ", r$final_model, "\n"))
         }
 
@@ -894,16 +796,13 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
           output_id_summary <- paste0("parallel_summary_", i)
           model <- result$model
           
-          # Split the label to get gender and age range parts
           label_parts <- unlist(strsplit(result$label, " "))
           gender_part <- label_parts[1]
           age_range_part <- gsub("[()]", "", label_parts[2])
           
-          # Create plot reactively in the main session
           output[[output_id_plot]] <- renderPlot({
             req(model)
             
-            # Extract key information for title and axis labels
             value_col_name <- input$parallel_col_value
             model_type <- switch(result$final_model,
                                  "BoxCox" = " (BoxCox Transformed)",
@@ -912,7 +811,6 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
             plot_title <- paste0("Estimated Reference Intervals for ", value_col_name, 
                                  model_type, " (Gender: ", gender_part, ", Age: ", age_range_part, ")")
             
-            # Ensure parallel_unit_input is not NULL or empty for xlab_text
             xlab_text <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
               paste0(value_col_name, " ", "[", input$parallel_unit_input, "]")
             } else {
@@ -924,12 +822,10 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
                  xlab = xlab_text)
           })
 
-          # Create summary reactively in the main session
           output[[output_id_summary]] <- renderPrint({
               req(model)
               cat("--- RefineR Summary for ", input$parallel_col_value, " (Gender: ", gender_part, ", Age: ", age_range_part, ") ---\n")
-              cat(paste0("Note: ", result$removed_rows, " rows were removed due to missing data.\n"))
-              # Print the model summary, which uses the default `fullDataEst` point estimate
+              cat(paste0("Note: ", result$removed_rows, " rows were removed due to missing or invalid data.\n"))
               print(model)
           })
         }

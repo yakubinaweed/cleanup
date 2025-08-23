@@ -17,7 +17,7 @@ library(ggplot2)
 # Source the server modules for each tab
 source("server_main.R")
 source("server_gmm.R")
-source("server_parallel.R") # <--- ENSURE THIS LINE IS PRESENT AND CORRECT
+source("server_parallel.R")
 
 server <- function(input, output, session) {
 
@@ -29,7 +29,7 @@ server <- function(input, output, session) {
   gmm_transformation_details_rv <- reactiveVal(list(male_hgb_transformed = FALSE, female_hgb_transformed = FALSE))
   selected_dir_reactive <- reactiveVal(NULL)
   message_rv <- reactiveVal(list(type = "", text = ""))
-  main_message_rv <- reactiveVal(list(type = "", text = "")) # NEW: Dedicated reactive value for main analysis messages
+  main_message_rv <- reactiveVal(list(type = "", text = ""))
   analysis_running_rv <- reactiveVal(FALSE)
 
   # New reactive values for the parallel analysis tab
@@ -38,50 +38,28 @@ server <- function(input, output, session) {
   parallel_message_rv <- reactiveVal(list(type = "", text = ""))
 
 
-  # --- Centralized Message Display ---
-  # Renders a UI element to display application-wide messages
-  output$app_message <- renderUI({
-    msg <- message_rv()
-    if (is.null(msg) || msg$text == "") {
-      return(NULL)
-    }
-    class_name <- switch(msg$type,
-                         "error" = "alert alert-danger",
-                         "success" = "alert alert-success",
-                         "warning" = "alert alert-warning",
-                         "info" = "alert alert-info",
-                         "alert alert-secondary")
-    div(class = class_name, msg$text)
-  })
+  # --- Centralized Message Display Function ---
+  # A single function to handle the rendering of all alert-style messages.
+  renderMessageUI <- function(rv) {
+    renderUI({
+      msg <- rv()
+      if (is.null(msg) || msg$text == "") {
+        return(NULL)
+      }
+      class_name <- switch(msg$type,
+                           "error" = "alert alert-danger",
+                           "success" = "alert alert-success",
+                           "warning" = "alert alert-warning",
+                           "info" = "alert alert-info",
+                           "alert alert-secondary")
+      div(class = class_name, msg$text)
+    })
+  }
 
-  # NEW: Dedicated renderUI for the Main Analysis tab
-  output$main_message <- renderUI({
-    msg <- main_message_rv()
-    if (is.null(msg) || msg$text == "") {
-      return(NULL)
-    }
-    class_name <- switch(msg$type,
-                         "error" = "alert alert-danger",
-                         "success" = "alert alert-success",
-                         "warning" = "alert alert-warning",
-                         "info" = "alert alert-info",
-                         "alert alert-secondary")
-    div(class = class_name, msg$text)
-  })
-
-  output$parallel_message <- renderUI({
-    msg <- parallel_message_rv()
-    if (is.null(msg) || msg$text == "") {
-      return(NULL)
-    }
-    class_name <- switch(msg$type,
-                         "error" = "alert alert-danger",
-                         "success" = "alert alert-success",
-                         "warning" = "alert alert-warning",
-                         "info" = "alert alert-info",
-                         "alert alert-secondary")
-    div(class = class_name, msg$text)
-  })
+  # Apply the new function to each dedicated message output
+  output$app_message <- renderMessageUI(message_rv)
+  output$main_message <- renderMessageUI(main_message_rv)
+  output$parallel_message <- renderMessageUI(parallel_message_rv)
 
   # --- Global Tab Switching Logic ---
   # An observer that prevents switching tabs when an analysis is running, providing a user message
@@ -101,7 +79,7 @@ server <- function(input, output, session) {
   })
 
   # Call the modular server functions for each tab
-  mainServer(input, output, session, data_reactive, selected_dir_reactive, main_message_rv, analysis_running_rv) # UPDATED: Passes the new reactive value
+  mainServer(input, output, session, data_reactive, selected_dir_reactive, main_message_rv, analysis_running_rv)
   gmmServer(input, output, session, gmm_uploaded_data_rv, gmm_processed_data_rv, gmm_transformation_details_rv, message_rv, analysis_running_rv)
   parallelServer(input, output, session, parallel_data_rv, parallel_results_rv, parallel_message_rv, analysis_running_rv)
 }

@@ -10,6 +10,7 @@ library(shinyFiles)
 library(ggplot2)
 library(bsicons)
 
+# Defines the main UI using a navigation bar with three tabs
 ui <- navbarPage(
   title = "RefineR Reference Interval Estimation",
   id = "tabs",
@@ -20,11 +21,10 @@ ui <- navbarPage(
   tabPanel(
     title = "Main Analysis",
     useShinyjs(),
+    # Custom CSS and JavaScript to manage tab disabling during analysis
     tags$head(
-      # Includes the custom CSS from the 'www' directory
       includeCSS("www/styles.css")
     ),
-    # Custom JavaScript to handle disabling the other tab during analysis
     tags$script(HTML("
       var analysisRunning = false;
       Shiny.addCustomMessageHandler('analysisStatus', function(status) {
@@ -49,10 +49,11 @@ ui <- navbarPage(
       });
     ")),
     sidebarLayout(
+      # Sidebar for user inputs
       sidebarPanel(
         style = "padding-right: 15px;",
         
-        # Correctly structured card for Main Analysis inputs
+        # Inputs for data filtering and analysis parameters
         div(class = "card", style = "border: 1px solid #ccc; border-radius: 8px;",
           div(class = "card-header", style = "background-color: #f7f7f7; padding: 10px; border-bottom: 1px solid #ccc; border-top-left-radius: 8px; border-top-right-radius: 8px;",
             h5(
@@ -64,7 +65,6 @@ ui <- navbarPage(
             )
           ),
           div(class = "card-body", style = "padding: 15px;",
-            # User inputs for data filtering and analysis parameters
             selectInput(inputId = "gender_choice", label = "Select Gender:", choices = c("Male" = "M", "Female" = "F", "Both" = "Both"), selected = "Both"),
             sliderInput(inputId = "age_range", label = "Age Range:", min = 0, max = 100, value = c(0, 100), step = 1)
           )
@@ -77,7 +77,7 @@ ui <- navbarPage(
         selectInput(inputId = "col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "col_gender", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
         hr(),
-        # Replaced radioButtons with sliderInput for computation speed
+        # Slider for computation speed
         sliderInput(
           inputId = "nbootstrap_speed",
           label = tags$span(
@@ -90,7 +90,7 @@ ui <- navbarPage(
           min = 1, max = 200, value = 50, step = 1
         ),
 
-        # Radio buttons for model selection (removed "None" option)
+        # Radio buttons for transformation model selection
         radioButtons(inputId = "model_choice",
                      label = tags$span(
                        tooltip(
@@ -120,8 +120,8 @@ ui <- navbarPage(
         numericInput("ref_high", "Reference Upper Limit:", value = NA),
         textInput(inputId = "unit_input", label = "Unit of Measurement", value = "mmol/L", placeholder = "ex. g/L")
       ),
+      # Main panel for displaying analysis outputs
       mainPanel(
-        # Outputs for the main analysis results
         plotOutput("result_plot"),
         verbatimTextOutput("result_text")
       )
@@ -133,6 +133,7 @@ ui <- navbarPage(
     title = "Subpopulation Detection (GMM)",
     useShinyjs(),
     sidebarLayout(
+      # Sidebar for GMM inputs
       sidebarPanel(
         # Start of card container
         div(class = "card", style = "border: 1px solid #ccc; border-radius: 8px;",
@@ -168,19 +169,18 @@ ui <- navbarPage(
               selected = ""
             ),
             hr(),
-            # Action buttons for the GMM analysis
-            # New radio buttons for gender selection
+            # Action buttons and other inputs for the GMM analysis
             uiOutput("gmm_gender_choice_ui"),
 
-            # === NEW: Model selection choice ===
+            # Model selection options (Auto-select vs. Manual)
             radioButtons(
               inputId = "gmm_model_selection_choice",
-              label = "Select Model Option:",
+              label = "Select BIC Model Option:",
               choices = c("Auto-select", "Manual Selection"),
               selected = "Auto-select"
             ),
 
-            # === NEW: Dynamic UI for manual model selection ===
+            # Dynamic UI for manual model selection
             uiOutput("gmm_manual_model_ui"),
 
             actionButton("run_gmm_analysis_btn", "Run Analysis", class = "btn-primary"),
@@ -190,8 +190,8 @@ ui <- navbarPage(
           )
         ) # End of card container
       ),
+      # Main panel for displaying GMM results dynamically
       mainPanel(
-        # Renders the UI for GMM results dynamically
         uiOutput("gmm_results_ui")
       )
     )
@@ -202,6 +202,7 @@ ui <- navbarPage(
     title = "Parallel Analysis",
     useShinyjs(),
     sidebarLayout(
+      # Sidebar for parallel analysis inputs
       sidebarPanel(
         style = "padding-right: 15px;",
         div(class = "card", style = "border: 1px solid #ccc; border-radius: 8px;",
@@ -214,6 +215,7 @@ ui <- navbarPage(
               style = "margin-top: 0; margin-bottom: 0;"
             )
           ),
+          # Text area inputs for defining age ranges
           div(class = "card-body", style = "padding: 15px;",
             textAreaInput(
               inputId = "male_age_ranges",
@@ -256,11 +258,12 @@ ui <- navbarPage(
         br(),
         fileInput(inputId = "parallel_file", label = "Upload Data (Excel File)", accept = c(".xlsx")),
         hr(),
+        # Select inputs for data columns
         selectInput(inputId = "parallel_col_value", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "parallel_col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "parallel_col_gender", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
         hr(),
-        # Replaced radioButtons with sliderInput for parallel analysis
+        # Slider and radio buttons for analysis parameters
         sliderInput(
           inputId = "parallel_nbootstrap_speed",
           label = tags$span(
@@ -288,7 +291,7 @@ ui <- navbarPage(
                                  "Auto-select" = "AutoSelect"),
                      selected = "AutoSelect", inline = TRUE),
         
-        # A new div to group and style the buttons
+        # Action buttons and other inputs
         div(class = "parallel-buttons",
             actionButton("run_parallel_btn", "Run Parallel Analysis", class = "btn-primary"),
             actionButton("reset_parallel_btn", "Reset File", class = "btn-secondary")
@@ -299,8 +302,8 @@ ui <- navbarPage(
         numericInput("cores", "Number of Cores:", value = 1, min = 1),
         textInput(inputId = "parallel_unit_input", label = "Unit of Measurement", value = "", placeholder = "ex. g/L")
       ),
+      # Main panel with tabs for different result views
       mainPanel(
-        # New tabsetPanel for organizing parallel results
         tabsetPanel(
           type = "pills", id = "my-nav",
           tabPanel("Individual Results",
@@ -345,7 +348,7 @@ ui <- navbarPage(
     )
   ),
 
-  # Footer of the application with copyright and a link to the author's GitHub
+  # Footer of the application with copyright and a link
   footer = tags$footer(
     HTML('© 2025 <a href="https://github.com/yakubinaweed/refineR-reference-interval" target="_blank">Naweed Yakubi</a> • All rights reserved.'),
     style = "
