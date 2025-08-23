@@ -186,7 +186,7 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
 
     # Convert the value column to numeric, coercing non-numeric values to NA
     cleaned_data <- filtered_data %>%
-      mutate(!!rlang::sym(value_col_name) := as.numeric(!!rlang::sym(value_col_name))) %>%
+      mutate(!!rlang::sym(value_col_name) := as.numeric(as.character(!!rlang::sym(value_col_name)))) %>%
       # Remove any rows where the value column is now NA (either originally empty or non-numeric text)
       filter(!is.na(!!rlang::sym(value_col_name)))
 
@@ -244,10 +244,25 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
     tryCatch({
       nbootstrap_value <- switch(isolated_inputs$nbootstrap_speed, "Fast" = 1, "Medium" = 50, "Slow" = 200, 1)
 
+      # Determine the model based on user selection or automatic detection
+      final_model_choice <- if (isolated_inputs$model_choice == "AutoSelect") {
+        # Calculate skewness of the data
+        data_to_analyze <- filtered_data[[isolated_inputs$col_value]]
+        skew <- moments::skewness(data_to_analyze, na.rm = TRUE)
+        # Select the model based on skewness threshold of 0.5
+        if (abs(skew) > 0.5) {
+          "modBoxCox"
+        } else {
+          "BoxCox"
+        }
+      } else {
+        isolated_inputs$model_choice
+      }
+
       # Run the main RefineR function with the selected model
       refiner_model <- refineR::findRI(Data = filtered_data[[isolated_inputs$col_value]],
                                        NBootstrap = nbootstrap_value,
-                                       model = isolated_inputs$model_choice)
+                                       model = final_model_choice)
 
       if (is.null(refiner_model) || inherits(refiner_model, "try-error")) {
         stop("RefineR model could not be generated. Check your input data and parameters.")
@@ -258,7 +273,7 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
       gender_text <- if (isolated_inputs$col_gender == "") "Combined" else paste0("Gender: ", isolated_inputs$gender_choice)
 
       # Adjust plot title to include transformation model
-      model_text <- switch(isolated_inputs$model_choice,
+      model_text <- switch(final_model_choice,
                            "BoxCox" = " (BoxCox Transformed)",
                            "modBoxCox" = " (modBoxCox Transformed)")
 

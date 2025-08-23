@@ -79,10 +79,20 @@ ui <- navbarPage(
         radioButtons(inputId = "nbootstrap_speed", label = "Select Computation Speed:", choices = c("Fast", "Medium", "Slow"), selected = "Fast", inline = TRUE),
 
         # Radio buttons for model selection (removed "None" option)
-        radioButtons(inputId = "model_choice", label = "Select Transformation Model:",
-                     choices = c("BoxCox" = "BoxCox",
-                                 "modBoxCox" = "modBoxCox"),
-                     selected = "BoxCox", inline = TRUE), # Default to Box-Cox
+        radioButtons(inputId = "model_choice",
+                    label = tags$span(
+                      tooltip(
+                        trigger = list(tags$span(bs_icon("info-circle"))),
+                        "BoxCox: For positive-valued data with light to moderate skewness.
+                          modBoxCox: For data with high skewness or values close to zero.
+                          Auto-select: Automatically chooses the optimal transformation based on data skewness."
+                      ),
+                      "Select Transformation Model:"
+                    ),
+                    choices = c("BoxCox" = "BoxCox",
+                                "modBoxCox" = "modBoxCox",
+                                "Auto-select" = "AutoSelect"),
+                    selected = "AutoSelect", inline = TRUE),
 
         # Action buttons for the analysis
         actionButton("analyze_btn", "Analyze", class = "btn-primary"),
