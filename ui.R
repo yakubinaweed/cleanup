@@ -71,12 +71,12 @@ ui <- navbarPage(
         ),
         br(),
         fileInput(inputId = "data_file", label = "Upload Data (Excel File)", accept = c(".xlsx")),
-        # to help here 
+        hr(),
         # Dynamic inputs for selecting data columns
         selectInput(inputId = "col_value", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "col_gender", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
-        
+        hr(),
         # Replaced radioButtons with sliderInput for computation speed
         sliderInput(
           inputId = "nbootstrap_speed",
@@ -107,7 +107,7 @@ ui <- navbarPage(
                      selected = "AutoSelect", inline = TRUE),
 
         # Action buttons for the analysis
-        actionButton("analyze_btn", "Analyze", class = "btn-primary"),
+        actionButton("analyze_btn", "Run Analysis", class = "btn-primary"),
         actionButton("reset_btn", "Reset File", class = "btn-secondary"),
         shinyFiles::shinyDirButton(id = "select_dir_btn", label = "Select Output Directory", title = "Select a directory to save plots", style = "margin-top: 5px;"),
         div(style = "margin-top: 5px; display: flex; align-items: center; justify-content: flex-start; width: 100%;",
@@ -183,7 +183,7 @@ ui <- navbarPage(
             # === NEW: Dynamic UI for manual model selection ===
             uiOutput("gmm_manual_model_ui"),
 
-            actionButton("run_gmm_analysis_btn", "Run GMM Analysis", class = "btn-primary"),
+            actionButton("run_gmm_analysis_btn", "Run Analysis", class = "btn-primary"),
             actionButton("reset_gmm_analysis_btn", "Reset File", class = "btn-secondary"),
             # Added a div with a top margin to create spacing
             div(style = "margin-top: 15px;", uiOutput("app_message"))
@@ -255,10 +255,11 @@ ui <- navbarPage(
         ), # End of card
         br(),
         fileInput(inputId = "parallel_file", label = "Upload Data (Excel File)", accept = c(".xlsx")),
+        hr(),
         selectInput(inputId = "parallel_col_value", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "parallel_col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "parallel_col_gender", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
-        
+        hr(),
         # Replaced radioButtons with sliderInput for parallel analysis
         sliderInput(
           inputId = "parallel_nbootstrap_speed",
