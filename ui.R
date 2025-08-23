@@ -265,7 +265,7 @@ ui <- navbarPage(
           label = tags$span(
             tooltip(
               trigger = list(tags$span(bs_icon("info-circle"))),
-              "Higher values mean more bootstrap iterations for increased accuracy, but will result in slower analysis times. (1 = Fast, 50 = Medium, 200 = Slow)"
+              "Higher values mean more bootstrap iterations for increased accuracy, but will result in slower analysis times (1 = Fast, 50 = Medium, 200 = Slow."
             ),
             "Select Computation Speed:"
           ),
