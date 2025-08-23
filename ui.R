@@ -66,33 +66,45 @@ ui <- navbarPage(
           div(class = "card-body", style = "padding: 15px;",
             # User inputs for data filtering and analysis parameters
             selectInput(inputId = "gender_choice", label = "Select Gender:", choices = c("Male" = "M", "Female" = "F", "Both" = "Both"), selected = "Both"),
-            sliderInput(inputId = "age_range", label = "Age Range:", min = 0, max = 100, value = c(0, 100), step = 1),
-            fileInput(inputId = "data_file", label = "Upload Data (Excel File)", accept = c(".xlsx"))
+            sliderInput(inputId = "age_range", label = "Age Range:", min = 0, max = 100, value = c(0, 100), step = 1)
           )
         ),
         br(),
+        fileInput(inputId = "data_file", label = "Upload Data (Excel File)", accept = c(".xlsx")),
         # to help here 
         # Dynamic inputs for selecting data columns
         selectInput(inputId = "col_value", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "col_gender", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
-        radioButtons(inputId = "nbootstrap_speed", label = "Select Computation Speed:", choices = c("Fast", "Medium", "Slow"), selected = "Fast", inline = TRUE),
+        
+        # Replaced radioButtons with sliderInput for computation speed
+        sliderInput(
+          inputId = "nbootstrap_speed",
+          label = tags$span(
+            tooltip(
+              trigger = list(tags$span(bs_icon("info-circle"))),
+              "Higher values mean more bootstrap iterations for increased accuracy, but will result in slower analysis times. (1 = Fast, 50 = Medium, 200 = Slow)"
+            ),
+            "Select Computation Speed:"
+          ),
+          min = 1, max = 200, value = 50, step = 1
+        ),
 
         # Radio buttons for model selection (removed "None" option)
         radioButtons(inputId = "model_choice",
-                    label = tags$span(
-                      tooltip(
-                        trigger = list(tags$span(bs_icon("info-circle"))),
-                        "BoxCox: For positive-valued data with light to moderate skewness.
+                     label = tags$span(
+                       tooltip(
+                         trigger = list(tags$span(bs_icon("info-circle"))),
+                         "BoxCox: For positive-valued data with light to moderate skewness.
                           modBoxCox: For data with high skewness or values close to zero.
                           Auto-select: Automatically chooses the optimal transformation based on data skewness."
-                      ),
-                      "Select Transformation Model:"
-                    ),
-                    choices = c("BoxCox" = "BoxCox",
-                                "modBoxCox" = "modBoxCox",
-                                "Auto-select" = "AutoSelect"),
-                    selected = "AutoSelect", inline = TRUE),
+                       ),
+                       "Select Transformation Model:"
+                     ),
+                     choices = c("BoxCox" = "BoxCox",
+                                 "modBoxCox" = "modBoxCox",
+                                 "Auto-select" = "AutoSelect"),
+                     selected = "AutoSelect", inline = TRUE),
 
         # Action buttons for the analysis
         actionButton("analyze_btn", "Analyze", class = "btn-primary"),
@@ -135,7 +147,6 @@ ui <- navbarPage(
               style = "margin-top: 0; margin-bottom: 0;"
             )
           ),
-          # Card body containing the existing sidebar content
           div(class = "card-body", style = "padding: 15px;",
             fileInput(inputId = "gmm_file_upload", label = "Upload Data (Excel File)", accept = c(".xlsx")),
             hr(),
@@ -172,7 +183,7 @@ ui <- navbarPage(
             # === NEW: Dynamic UI for manual model selection ===
             uiOutput("gmm_manual_model_ui"),
 
-            actionButton("run_gmm_analysis_btn", "Analyze", class = "btn-primary"),
+            actionButton("run_gmm_analysis_btn", "Run GMM Analysis", class = "btn-primary"),
             actionButton("reset_gmm_analysis_btn", "Reset File", class = "btn-secondary"),
             # Added a div with a top margin to create spacing
             div(style = "margin-top: 15px;", uiOutput("app_message"))
@@ -247,11 +258,35 @@ ui <- navbarPage(
         selectInput(inputId = "parallel_col_value", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "parallel_col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "parallel_col_gender", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
-        radioButtons(inputId = "parallel_model_choice", label = "Select Transformation Model:",
-                     choices = c("BoxCox" = "BoxCox", "modBoxCox" = "modBoxCox"),
-                     selected = "BoxCox", inline = TRUE),
-        radioButtons(inputId = "parallel_nbootstrap_speed", label = "Select Computation Speed:", choices = c("Fast", "Medium", "Slow"), selected = "Fast", inline = TRUE),
+        
+        # Replaced radioButtons with sliderInput for parallel analysis
+        sliderInput(
+          inputId = "parallel_nbootstrap_speed",
+          label = tags$span(
+            tooltip(
+              trigger = list(tags$span(bs_icon("info-circle"))),
+              "Higher values mean more bootstrap iterations for increased accuracy, but will result in slower analysis times. (1 = Fast, 50 = Medium, 200 = Slow)"
+            ),
+            "Select Computation Speed:"
+          ),
+          min = 1, max = 200, value = 50, step = 1
+        ),
 
+        radioButtons(inputId = "parallel_model_choice",
+                     label = tags$span(
+                       tooltip(
+                         trigger = list(tags$span(bs_icon("info-circle"))),
+                         "BoxCox: For positive-valued data with light to moderate skewness.
+                          modBoxCox: For data with high skewness or values close to zero.
+                          Auto-select: Automatically chooses the optimal transformation based on data skewness."
+                       ),
+                       "Select Transformation Model:"
+                     ),
+                     choices = c("BoxCox" = "BoxCox",
+                                 "modBoxCox" = "modBoxCox",
+                                 "Auto-select" = "AutoSelect"),
+                     selected = "AutoSelect", inline = TRUE),
+        
         # A new div to group and style the buttons
         div(class = "parallel-buttons",
             actionButton("run_parallel_btn", "Run Parallel Analysis", class = "btn-primary"),

@@ -14,6 +14,7 @@ library(bslib)
 library(ggplot2)
 library(future)       # Added for future-based parallel processing
 library(future.apply) # Added to use future_lapply
+library(moments)
 
 # =========================================================================
 # UTILITY FUNCTIONS FOR PARALLEL ANALYSIS
@@ -65,7 +66,7 @@ filter_data <- function(data, gender_choice, age_min, age_max, col_gender, col_a
     # If no gender column is selected OR found in the data:
     # If the user requested 'Male' or 'Female' specific subpopulations, but no gender column
     # is available to filter by, this is an invalid request for gender-specific data.
-    # In such cases, return an empty data frame to indicate no data for this subpopulation.
+    # In such cases, return an an empty data frame to indicate no data for this subpopulation.
     if (gender_choice %in% c("M", "F")) {
       return(data[FALSE, ]) # Return an empty data frame with original columns
     } else {
@@ -149,10 +150,22 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
     # Calculate the number of removed rows after filtering and cleaning
     removed_rows_count <- original_rows_count - nrow(cleaned_data)
 
+    # Determine the model based on user selection or automatic detection
+    final_model_choice <- if (model_choice == "AutoSelect") {
+      skew <- moments::skewness(cleaned_data[[value_col_name]], na.rm = TRUE)
+      if (abs(skew) > 0.5) {
+        "modBoxCox"
+      } else {
+        "BoxCox"
+      }
+    } else {
+      model_choice
+    }
+
     # Run the refineR model
-    model <- refineR::findRI(Data = cleaned_data[[col_value]],
+    model <- refineR::findRI(Data = cleaned_data[[value_col_name]],
                              NBootstrap = nbootstrap_value,
-                             model = model_choice)
+                             model = final_model_choice)
 
     if (is.null(model) || inherits(model, "try-error")) {
       stop(paste("RefineR model could not be generated for subpopulation:", label))
@@ -187,7 +200,8 @@ run_single_refiner_analysis <- function(subpopulation, data, col_value, col_age,
       ci_high_low = ci_high_low,
       ci_high_high = ci_high_high,
       status = "success",
-      message = "Analysis complete."
+      message = "Analysis complete.",
+      final_model = final_model_choice
     )
 
   }, error = function(e) {
@@ -263,7 +277,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     col_age_input <- input$parallel_col_age
     col_gender_input <- input$parallel_col_gender
     model_choice_input <- input$parallel_model_choice
-    nbootstrap_value_input <- switch(input$parallel_nbootstrap_speed, "Fast" = 1, "Medium" = 50, "Slow" = 200, 1)
+    nbootstrap_value_input <- input$parallel_nbootstrap_speed # Directly use slider value
 
     # Set the parallelization plan based on user input for cores
     plan(multisession, workers = input$cores)
@@ -321,6 +335,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     updateSelectInput(session, "parallel_col_age", choices = c("None" = ""), selected = "")
     updateSelectInput(session, "parallel_col_gender", choices = c("None" = ""), selected = "")
     updateRadioButtons(session, "parallel_model_choice", selected = "BoxCox")
+    updateSliderInput(session, "parallel_nbootstrap_speed", value = 50) # Reset slider
     updateTextAreaInput(session, "male_age_ranges", value = "")
     updateTextAreaInput(session, "female_age_ranges", value = "")
     updateTextAreaInput(session, "combined_age_ranges", value = "")
@@ -843,7 +858,16 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
         cat(paste0("  Confidence Interval for Lower Limit: [", round(ci_low_low, 3), ", ", round(ci_low_high, 3), "]\n"))
         cat(paste0("  Estimated RI Upper Limit: ", round(ri_high, 3), "\n"))
         cat(paste0("  Confidence Interval for Upper Limit: [", round(ci_high_low, 3), ", ", round(ci_high_high, 3), "]\n"))
-        cat(paste0("  Transformation Model: ", input$parallel_model_choice, "\n"))
+        
+        # New conditional check for model choice
+        if(r$final_model != input$parallel_model_choice) {
+          # This case is when auto-select was chosen but the final model was different.
+          cat(paste0("  Transformation Model: Auto-selected ", r$final_model, " (from user's '", input$parallel_model_choice, "' choice)\n"))
+        } else {
+          # This case is when a specific model was chosen, or auto-select chose the same model.
+          cat(paste0("  Transformation Model: ", r$final_model, "\n"))
+        }
+
         if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
           cat(paste0("  Unit of Measurement: ", input$parallel_unit_input, "\n"))
         }
@@ -881,7 +905,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
             
             # Extract key information for title and axis labels
             value_col_name <- input$parallel_col_value
-            model_type <- switch(input$parallel_model_choice,
+            model_type <- switch(result$final_model,
                                  "BoxCox" = " (BoxCox Transformed)",
                                  "modBoxCox" = " (modBoxCox Transformed)")
             

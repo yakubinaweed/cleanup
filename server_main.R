@@ -138,6 +138,8 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
     updateSelectInput(session, "col_gender", choices = c("None" = ""), selected = "")
     # Reset model choice to default (Box-Cox)
     updateRadioButtons(session, "model_choice", selected = "BoxCox")
+    # Reset slider for computation speed to default (Medium, 50)
+    updateSliderInput(session, "nbootstrap_speed", value = 50)
   })
 
   # Observer for directory selection using shinyFiles
@@ -230,7 +232,7 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
         col_value = input$col_value,
         col_age = input$col_age,
         col_gender = input$col_gender,
-        nbootstrap_speed = input$nbootstrap_speed,
+        nbootstrap_speed = input$nbootstrap_speed, # Directly use numeric value from slider
         unit_input = input$unit_input,
         ref_low = input$ref_low,
         ref_high = input$ref_high,
@@ -242,7 +244,7 @@ mainServer <- function(input, output, session, data_reactive, selected_dir_react
     refiner_model <- NULL
 
     tryCatch({
-      nbootstrap_value <- switch(isolated_inputs$nbootstrap_speed, "Fast" = 1, "Medium" = 50, "Slow" = 200, 1)
+      nbootstrap_value <- isolated_inputs$nbootstrap_speed # Directly use slider value
 
       # Determine the model based on user selection or automatic detection
       final_model_choice <- if (isolated_inputs$model_choice == "AutoSelect") {
