@@ -242,52 +242,81 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     shinyjs::runjs("$('#run_parallel_btn').text('Analyzing...');")
     session$sendCustomMessage('analysisStatus', TRUE)
 
-    # Stage 2: Run the parallel analysis using `future_lapply`
-    data_to_analyze <- parallel_data_rv()
-    col_value_input <- input$parallel_col_value
-    col_age_input <- input$parallel_col_age
-    col_gender_input <- input$parallel_col_gender
-    model_choice_input <- input$parallel_model_choice
-    nbootstrap_value_input <- input$parallel_nbootstrap_speed
-
-    plan(multisession, workers = input$cores)
-
-    results_list <- future_lapply(subpopulations, function(sub) {
-      run_single_refiner_analysis(
-        subpopulation = sub,
-        data = data_to_analyze,
-        col_value = col_value_input,
-        col_age = col_age_input,
-        col_gender = col_gender_input,
-        model_choice = model_choice_input,
-        nbootstrap_value = nbootstrap_value_input
-      )
-    }, future.seed = TRUE)
-
-    # Stage 3: Process results and update reactive values
-    parallel_results_rv(results_list)
-
-    raw_data_list <- lapply(results_list, function(r) {
-      if (r$status == "success") {
-        return(r$raw_data)
-      } else {
-        return(NULL)
-      }
-    })
+    # Stage 2: Attempt to set up the future plan and run the parallel analysis
+    results_list <- NULL
     
-    combined_raw_data_rv(bind_rows(raw_data_list))
+    # New tryCatch block to handle errors during the plan() setup
+    tryCatch({
+      plan(multisession, workers = input$cores)
 
-    # Stage 4: Finalize and update UI state
-    analysis_running_rv(FALSE)
-    shinyjs::enable("run_parallel_btn")
-    shinyjs::runjs("$('#run_parallel_btn').text('Run Parallel Analysis');")
-    session$sendCustomMessage('analysisStatus', FALSE)
+      # Run the parallel analysis using `future_lapply`
+      data_to_analyze <- parallel_data_rv()
+      col_value_input <- input$parallel_col_value
+      col_age_input <- input$parallel_col_age
+      col_gender_input <- input$parallel_col_gender
+      model_choice_input <- input$parallel_model_choice
+      nbootstrap_value_input <- input$parallel_nbootstrap_speed
 
-    if (all(sapply(parallel_results_rv(), function(r) r$status == "error"))) {
-      parallel_message_rv(list(text = "Parallel analysis failed for all subpopulations.", type = "error"))
-    } else {
-      parallel_message_rv(list(text = "Parallel analysis complete!", type = "success"))
-    }
+      results_list <- future_lapply(subpopulations, function(sub) {
+        run_single_refiner_analysis(
+          subpopulation = sub,
+          data = data_to_analyze,
+          col_value = col_value_input,
+          col_age = col_age_input,
+          col_gender = col_gender_input,
+          model_choice = model_choice_input,
+          nbootstrap_value = nbootstrap_value_input
+        )
+      }, future.seed = TRUE)
+      
+      # If plan and lapply succeed, process results and set final success message
+      if (!is.null(results_list)) {
+        parallel_results_rv(results_list)
+
+        raw_data_list <- lapply(results_list, function(r) {
+          if (r$status == "success") {
+            return(r$raw_data)
+          } else {
+            return(NULL)
+          }
+        })
+        
+        combined_raw_data_rv(bind_rows(raw_data_list))
+
+        if (all(sapply(parallel_results_rv(), function(r) r$status == "error"))) {
+          # This case handles when the plan worked, but all individual analyses failed.
+          parallel_message_rv(list(text = "Parallel analysis failed for all subpopulations. See the summary for complete error.", type = "error"))
+        } else {
+          parallel_message_rv(list(text = "Parallel analysis complete!", type = "success"))
+        }
+      }
+
+    }, error = function(e) {
+      # This block now handles all errors, including those from plan().
+      error_message <- e$message
+      
+      # Check if the error message is about too many cores
+      if (grepl("too many cores", error_message, ignore.case = TRUE) ||
+          grepl("load is set to", error_message, ignore.case = TRUE) ||
+          grepl("connections", error_message, ignore.case = TRUE)) {
+        
+        parallel_message_rv(list(text = paste("Failed to start parallel processes: The number of cores requested (", input$cores, ") exceeds the available resources or the hard limit. Please reduce the number of cores.", sep = ""), type = "error"))
+      } else {
+        # Generic error message for other failures
+        parallel_message_rv(list(text = paste("An unexpected error occurred during parallel analysis:", error_message), type = "error"))
+      }
+
+      # Clear out any potential partial results to avoid downstream errors
+      parallel_results_rv(list())
+      combined_raw_data_rv(tibble())
+      
+    }, finally = {
+      # This block runs regardless of success or failure to clean up the UI
+      analysis_running_rv(FALSE)
+      shinyjs::enable("run_parallel_btn")
+      shinyjs::runjs("$('#run_parallel_btn').text('Run Parallel Analysis');")
+      session$sendCustomMessage('analysisStatus', FALSE)
+    })
   })
 
   # Observer for the Reset button
@@ -342,35 +371,17 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
   
   # Reactive expression to filter and prepare data for all combined plots
   filtered_plot_data_rv <- reactive({
-    results <- parallel_results_rv()
-    if (is.null(results) || length(results) == 0) {
+    plot_data_from_raw <- combined_raw_data_rv()
+    if (is.null(plot_data_from_raw) || nrow(plot_data_from_raw) == 0) {
       return(tibble())
-    }
-    
-    plot_data <- tibble()
-    for (result in results) {
-      if (result$status == "success") {
-        plot_data <- bind_rows(plot_data, tibble(
-          gender = str_extract(result$label, "^\\w+"),
-          label = result$label,
-          age_min = result$age_min,
-          age_max = result$age_max,
-          `RI Lower` = result$ri_low_fulldata,
-          `RI Upper` = result$ri_high_fulldata,
-          `CI Lower (Lower)` = result$ci_low_low,
-          `CI Lower (Upper)` = result$ci_low_high,
-          `CI Upper (Lower)` = result$ci_high_low,
-          `CI Upper (Upper)` = result$ci_high_high
-        ))
-      }
     }
     
     # Filter data based on selected genders here
     req(input$parallel_gender_filter)
-    plot_data <- plot_data %>%
-      filter(gender %in% input$parallel_gender_filter)
+    plot_data_from_raw <- plot_data_from_raw %>%
+      filter(Gender_Standardized %in% input$parallel_gender_filter)
     
-    return(plot_data)
+    return(plot_data_from_raw)
   })
 
   # Dynamic UI for results
@@ -424,8 +435,13 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
   output$combined_dumbbell_plot <- renderPlot({
     plot_data <- filtered_plot_data_rv()
     
-    if (nrow(plot_data) == 0) {
+    if (is.null(plot_data) || nrow(plot_data) == 0) {
       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot for the selected genders.", size = 6, color = "grey50"))
+    }
+
+    plot_data_summary <- combined_summary_table()
+    if (is.null(plot_data_summary) || nrow(plot_data_summary) == 0) {
+       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot for the selected genders.", size = 6, color = "grey50"))
     }
 
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
@@ -436,34 +452,34 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
 
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
 
-    ggplot2::ggplot(plot_data, ggplot2::aes(y = reorder(label, age_min))) +
+    ggplot2::ggplot(plot_data_summary, ggplot2::aes(y = reorder(Gender, age_min))) +
       ggplot2::geom_segment(ggplot2::aes(x = `CI Lower (Lower)`,
                                         xend = `CI Lower (Upper)`,
-                                        y = reorder(label, age_min),
-                                        yend = reorder(label, age_min),
-                                        color = gender),
+                                        y = reorder(Gender, age_min),
+                                        yend = reorder(Gender, age_min),
+                                        color = Gender),
                             linewidth = 10,
                             alpha = 0.3,
                             lineend = "square") +
       
       ggplot2::geom_segment(ggplot2::aes(x = `CI Upper (Lower)`,
                                         xend = `CI Upper (Upper)`,
-                                        y = reorder(label, age_min),
-                                        yend = reorder(label, age_min),
-                                        color = gender),
+                                        y = reorder(Gender, age_min),
+                                        yend = reorder(Gender, age_min),
+                                        color = Gender),
                             linewidth = 10,
                             alpha = 0.3,
                             lineend = "square") +
 
       ggplot2::geom_errorbarh(ggplot2::aes(xmin = `RI Lower`,
                                           xmax = `RI Upper`,
-                                          color = gender),
+                                          color = Gender),
                               height = 0.1, linewidth = 1.2) +            
 
-      ggplot2::geom_point(ggplot2::aes(x = `RI Lower`, color = gender), shape = 18, size = 4) +
-      ggplot2::geom_point(ggplot2::aes(x = `RI Upper`, color = gender), shape = 18, size = 4) +
+      ggplot2::geom_point(ggplot2::aes(x = `RI Lower`, color = Gender), shape = 18, size = 4) +
+      ggplot2::geom_point(ggplot2::aes(x = `RI Upper`, color = Gender), shape = 18, size = 4) +
       
-      ggplot2::facet_wrap(~ gender, ncol = 1, scales = "free_y", strip.position = "right") +
+      ggplot2::facet_wrap(~ Gender, ncol = 1, scales = "free_y", strip.position = "right") +
       
       ggplot2::labs(
         title = "Estimated Reference Intervals by Subpopulation",
@@ -490,9 +506,15 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
   output$combined_ri_plot <- renderPlot({
     plot_data <- filtered_plot_data_rv()
 
-    if (nrow(plot_data) == 0) {
+    if (is.null(plot_data) || nrow(plot_data) == 0) {
       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot for the selected genders.", size = 6, color = "grey50"))
     }
+    
+    plot_data_summary <- combined_summary_table()
+    if (is.null(plot_data_summary) || nrow(plot_data_summary) == 0) {
+       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No successful reference intervals to plot for the selected genders.", size = 6, color = "grey50"))
+    }
+
 
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
       paste0(input$parallel_col_value, " [", input$parallel_unit_input, "]")
@@ -502,19 +524,19 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
 
     gender_colors <- c("Male" = "steelblue", "Female" = "darkred", "Combined" = "darkgreen")
 
-    ggplot2::ggplot(plot_data) +
-      ggplot2::geom_rect(ggplot2::aes(xmin = age_min, xmax = age_max, ymin = `CI Lower (Lower)`, ymax = `CI Lower (Upper)`, fill = gender),
+    ggplot2::ggplot(plot_data_summary) +
+      ggplot2::geom_rect(ggplot2::aes(xmin = age_min, xmax = age_max, ymin = `CI Lower (Lower)`, ymax = `CI Lower (Upper)`, fill = Gender),
                          alpha = 0.2) +
-      ggplot2::geom_rect(ggplot2::aes(xmin = age_min, xmax = age_max, ymin = `CI Upper (Lower)`, ymax = `CI Upper (Upper)`, fill = gender),
+      ggplot2::geom_rect(ggplot2::aes(xmin = age_min, xmax = age_max, ymin = `CI Upper (Lower)`, ymax = `CI Upper (Upper)`, fill = Gender),
                          alpha = 0.2) +
-      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Lower`, yend = `RI Lower`, color = gender),
+      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Lower`, yend = `RI Lower`, color = Gender),
                             linewidth = 1.2, linetype = "solid") +
-      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Upper`, yend = `RI Upper`, color = gender),
+      ggplot2::geom_segment(ggplot2::aes(x = age_min, xend = age_max, y = `RI Upper`, yend = `RI Upper`, color = Gender),
                             linewidth = 1.2, linetype = "solid") +
-      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Lower`, color = gender), size = 2) +
-      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Lower`, color = gender), size = 2) +
-      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Upper`, color = gender), size = 2) +
-      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Upper`, color = gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Lower`, color = Gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Lower`, color = Gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_min, y = `RI Upper`, color = Gender), size = 2) +
+      ggplot2::geom_point(ggplot2::aes(x = age_max, y = `RI Upper`, color = Gender), size = 2) +
       ggplot2::labs(
         title = "Reference Intervals by Age and Gender",
         x = "Age",
@@ -547,7 +569,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     
     req(input$parallel_gender_filter)
     plot_data <- plot_data %>%
-      filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
+      filter(Gender_Standardized %in% input$parallel_gender_filter)
     
     if (length(unique(plot_data$label)) < 1) {
        return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "Insufficient data to create a faceted plot.", size = 6, color = "grey50"))
@@ -614,7 +636,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     
     req(input$parallel_gender_filter)
     plot_data <- plot_data %>%
-      filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
+      filter(Gender_Standardized %in% input$parallel_gender_filter)
     
     unit_label <- if (!is.null(input$parallel_unit_input) && input$parallel_unit_input != "") {
       paste0(input$parallel_col_value, " [", input$parallel_unit_input, "]")
@@ -675,7 +697,7 @@ parallelServer <- function(input, output, session, parallel_data_rv, parallel_re
     
     req(input$parallel_gender_filter)
     plot_data <- plot_data %>%
-      filter(str_extract(label, "^\\w+") %in% input$parallel_gender_filter)
+      filter(Gender_Standardized %in% input$parallel_gender_filter)
     
     if (nrow(plot_data) == 0) {
       return(ggplot2::ggplot() + ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No data available for plotting for the selected genders.", size = 6, color = "grey50"))
