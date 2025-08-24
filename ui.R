@@ -14,46 +14,40 @@ library(bsicons)
 ui <- navbarPage(
   title = "RefineR Reference Interval Estimation",
   id = "tabs",
-  # Sets the visual theme and fonts for the Shiny app
   theme = bs_theme(version = 5, base_font = font_google("Inter"), heading_font = font_google("Rethink Sans"), font_scale = 1.1, bootswatch = "default"),
 
   # First tab for the main RefineR analysis
   tabPanel(
     title = "Main Analysis",
     useShinyjs(),
-    # Custom CSS and JavaScript to manage tab disabling during analysis
+    # JavaScript to manage tab disabling during analysis
     tags$head(
-      includeCSS("www/styles.css")
+      includeCSS("www/styles.css"),
+      tags$script(HTML("
+        var analysisRunning = false;
+        Shiny.addCustomMessageHandler('analysisStatus', function(status) {
+          analysisRunning = status;
+          if (status) {
+            $('a[data-toggle=\"tab\"]').each(function() {
+              if (!$(this).parent().hasClass('active')) {
+                $(this).addClass('disabled-tab-link');
+              }
+            });
+          } else {
+            $('a.disabled-tab-link').removeClass('disabled-tab-link');
+          }
+        });
+        $(document).on('click', 'a.disabled-tab-link', function(event) {
+          event.preventDefault();
+          Shiny.setInputValue('tab_switch_blocked', new Date().getTime());
+          return false;
+        });
+      "))
     ),
-    tags$script(HTML("
-      var analysisRunning = false;
-      Shiny.addCustomMessageHandler('analysisStatus', function(status) {
-        analysisRunning = status;
-        if (status) {
-          // Disable all tab links that are not currently active
-          $('a[data-toggle=\"tab\"]').each(function() {
-            if (!$(this).parent().hasClass('active')) {
-              $(this).addClass('disabled-tab-link');
-            }
-          });
-        } else {
-          // Re-enable all tab links
-          $('a.disabled-tab-link').removeClass('disabled-tab-link');
-        }
-      });
-      // Event handler to block clicks on disabled tabs
-      $(document).on('click', 'a.disabled-tab-link', function(event) {
-        event.preventDefault();
-        Shiny.setInputValue('tab_switch_blocked', new Date().getTime());
-        return false;
-      });
-    ")),
     sidebarLayout(
-      # Sidebar for user inputs
       sidebarPanel(
         style = "padding-right: 15px;",
         
-        # Inputs for data filtering and analysis parameters
         div(class = "card", style = "border: 1px solid #ccc; border-radius: 8px;",
           div(class = "card-header", style = "background-color: #f7f7f7; padding: 10px; border-bottom: 1px solid #ccc; border-top-left-radius: 8px; border-top-right-radius: 8px;",
             h5(
@@ -69,15 +63,14 @@ ui <- navbarPage(
             sliderInput(inputId = "age_range", label = "Age Range:", min = 0, max = 100, value = c(0, 100), step = 1)
           )
         ),
+        
         br(),
         fileInput(inputId = "data_file", label = "Upload Data (Excel File)", accept = c(".xlsx")),
         hr(),
-        # Dynamic inputs for selecting data columns
         selectInput(inputId = "col_value", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "col_gender", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
         hr(),
-        # Slider for computation speed
         sliderInput(
           inputId = "nbootstrap_speed",
           label = tags$span(
@@ -89,38 +82,29 @@ ui <- navbarPage(
           ),
           min = 1, max = 200, value = 50, step = 1
         ),
-
-        # Radio buttons for transformation model selection
         radioButtons(inputId = "model_choice",
                      label = tags$span(
                        tooltip(
                          trigger = list(tags$span(bs_icon("info-circle"))),
-                         "BoxCox: For positive-valued data with light to moderate skewness.
-                          modBoxCox: For data with high skewness or values close to zero.
-                          Auto-select: Automatically chooses the optimal transformation based on data skewness."
+                         "BoxCox: For positive-valued data with light to moderate skewness. modBoxCox: For data with high skewness or values close to zero. Auto-select: Automatically chooses the optimal transformation based on data skewness."
                        ),
                        "Select Transformation Model:"
                      ),
-                     choices = c("BoxCox" = "BoxCox",
-                                 "modBoxCox" = "modBoxCox",
-                                 "Auto-select" = "AutoSelect"),
+                     choices = c("BoxCox" = "BoxCox", "modBoxCox" = "modBoxCox", "Auto-select" = "AutoSelect"),
                      selected = "AutoSelect", inline = TRUE),
-
-        # Action buttons for the analysis
+        
         actionButton("analyze_btn", "Run Analysis", class = "btn-primary"),
         actionButton("reset_btn", "Reset File", class = "btn-secondary"),
         shinyFiles::shinyDirButton(id = "select_dir_btn", label = "Select Output Directory", title = "Select a directory to save plots", style = "margin-top: 5px;"),
         div(style = "margin-top: 5px; display: flex; align-items: center; justify-content: flex-start; width: 100%;",
             prettySwitch(inputId = "enable_directory", label = "Auto-Save Graph", status = "success", fill = TRUE, inline = TRUE)
         ),
-        uiOutput("main_message"), # Placeholder for displaying app messages
+        uiOutput("main_message"),
         hr(),
-        # Inputs for manual reference limits and units for the plot
         numericInput("ref_low", "Reference Lower Limit:", value = NA),
         numericInput("ref_high", "Reference Upper Limit:", value = NA),
         textInput(inputId = "unit_input", label = "Unit of Measurement", value = "mmol/L", placeholder = "ex. g/L")
       ),
-      # Main panel for displaying analysis outputs
       mainPanel(
         plotOutput("result_plot"),
         verbatimTextOutput("result_text")
@@ -133,13 +117,9 @@ ui <- navbarPage(
     title = "Subpopulation Detection (GMM)",
     useShinyjs(),
     sidebarLayout(
-      # Sidebar for GMM inputs
       sidebarPanel(
-        # Start of card container
         div(class = "card", style = "border: 1px solid #ccc; border-radius: 8px;",
-          # Card header with title
           div(class = "card-header", style = "background-color: #f7f7f7; padding: 10px; border-bottom: 1px solid #ccc; border-top-left-radius: 8px; border-top-right-radius: 8px;",
-            # Applied tooltip to the h5 header
             h5(
               tooltip(
                 trigger = list("GMM Analysis", bs_icon("info-circle")),
@@ -151,17 +131,13 @@ ui <- navbarPage(
           div(class = "card-body", style = "padding: 15px;",
             fileInput(inputId = "gmm_file_upload", label = "Upload Data (Excel File)", accept = c(".xlsx")),
             hr(),
-            # Dynamic inputs for selecting Value, Age, and Gender columns for GMM
             selectInput(inputId = "gmm_value_col", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
             selectInput(inputId = "gmm_age_col", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
             selectInput(
               inputId = "gmm_gender_col",
               label = tags$span(
                 tooltip(
-                  trigger = list(
-                    tags$span(bs_icon("info-circle")),
-                    "Select Column for Gender:"
-                  ),
+                  trigger = list(tags$span(bs_icon("info-circle")), "Select Column for Gender:"),
                   "Optional. If not selected, analysis will be run on combined data."
                 )
               ),
@@ -169,28 +145,20 @@ ui <- navbarPage(
               selected = ""
             ),
             hr(),
-            # Action buttons and other inputs for the GMM analysis
             uiOutput("gmm_gender_choice_ui"),
-
-            # Model selection options (Auto-select vs. Manual)
             radioButtons(
               inputId = "gmm_model_selection_choice",
               label = "Select BIC Model Option:",
               choices = c("Auto-select", "Manual Selection"),
               selected = "Auto-select"
             ),
-
-            # Dynamic UI for manual model selection
             uiOutput("gmm_manual_model_ui"),
-
             actionButton("run_gmm_analysis_btn", "Run Analysis", class = "btn-primary"),
             actionButton("reset_gmm_analysis_btn", "Reset File", class = "btn-secondary"),
-            # Added a div with a top margin to create spacing
             div(style = "margin-top: 15px;", uiOutput("app_message"))
           )
-        ) # End of card container
+        )
       ),
-      # Main panel for displaying GMM results dynamically
       mainPanel(
         uiOutput("gmm_results_ui")
       )
@@ -202,7 +170,6 @@ ui <- navbarPage(
     title = "Parallel Analysis",
     useShinyjs(),
     sidebarLayout(
-      # Sidebar for parallel analysis inputs
       sidebarPanel(
         style = "padding-right: 15px;",
         div(class = "card", style = "border: 1px solid #ccc; border-radius: 8px;",
@@ -215,94 +182,54 @@ ui <- navbarPage(
               style = "margin-top: 0; margin-bottom: 0;"
             )
           ),
-          # Text area inputs for defining age ranges
           div(class = "card-body", style = "padding: 15px;",
             textAreaInput(
               inputId = "male_age_ranges",
-              label = tags$span(
-                tooltip(
-                  tags$span(bs_icon("info-circle")),
-                  "Enter age ranges for the male subpopulation. Use commas to separate multiple ranges."
-                ),
-                "Male Age Ranges:"
-              ),
+              label = tags$span(tooltip(tags$span(bs_icon("info-circle")), "Enter age ranges for the male subpopulation. Use commas to separate multiple ranges."), "Male Age Ranges:"),
               rows = 1,
               placeholder = "e.g., 0-10, 10-20"
             ),
             textAreaInput(
               inputId = "female_age_ranges",
-              label = tags$span(
-                tooltip(
-                  tags$span(bs_icon("info-circle")),
-                  "Enter age ranges for the female subpopulation. Use commas to separate multiple ranges."
-                ),
-                "Female Age Ranges:"
-              ),
+              label = tags$span(tooltip(tags$span(bs_icon("info-circle")), "Enter age ranges for the female subpopulation. Use commas to separate multiple ranges."), "Female Age Ranges:"),
               rows = 1,
               placeholder = "e.g., 0-10, 10-20"
             ),
             textAreaInput(
               inputId = "combined_age_ranges",
-              label = tags$span(
-                tooltip(
-                  tags$span(bs_icon("info-circle")),
-                  "Enter age ranges for the both subpopulations. Use commas to separate multiple ranges."
-                ),
-                "All Genders Age Ranges:"
-              ),
+              label = tags$span(tooltip(tags$span(bs_icon("info-circle")), "Enter age ranges for the both subpopulations. Use commas to separate multiple ranges."), "All Genders Age Ranges:"),
               rows = 1,
               placeholder = "e.g., 0-10, 10-20"
-            ),
-          ) # End of card-body
-        ), # End of card
+            )
+          )
+        ),
+        
         br(),
         fileInput(inputId = "parallel_file", label = "Upload Data (Excel File)", accept = c(".xlsx")),
         hr(),
-        # Select inputs for data columns
         selectInput(inputId = "parallel_col_value", label = "Select Column for Values:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "parallel_col_age", label = "Select Column for Age:", choices = c("None" = ""), selected = ""),
         selectInput(inputId = "parallel_col_gender", label = "Select Column for Gender:", choices = c("None" = ""), selected = ""),
         hr(),
-        # Slider and radio buttons for analysis parameters
         sliderInput(
           inputId = "parallel_nbootstrap_speed",
-          label = tags$span(
-            tooltip(
-              trigger = list(tags$span(bs_icon("info-circle"))),
-              "Higher values mean more bootstrap iterations for increased accuracy, but will result in slower analysis times (1 = Fast, 50 = Medium, 200 = Slow)."
-            ),
-            "Select Computation Speed:"
-          ),
+          label = tags$span(tooltip(trigger = list(tags$span(bs_icon("info-circle"))), "Higher values mean more bootstrap iterations for increased accuracy, but will result in slower analysis times (1 = Fast, 50 = Medium, 200 = Slow)."), "Select Computation Speed:"),
           min = 1, max = 200, value = 50, step = 1
         ),
-
         radioButtons(inputId = "parallel_model_choice",
-                     label = tags$span(
-                       tooltip(
-                         trigger = list(tags$span(bs_icon("info-circle"))),
-                         "BoxCox: For positive-valued data with light to moderate skewness.
-                          modBoxCox: For data with high skewness or values close to zero.
-                          Auto-select: Automatically chooses the optimal transformation based on data skewness."
-                       ),
-                       "Select Transformation Model:"
-                     ),
-                     choices = c("BoxCox" = "BoxCox",
-                                 "modBoxCox" = "modBoxCox",
-                                 "Auto-select" = "AutoSelect"),
+                     label = tags$span(tooltip(trigger = list(tags$span(bs_icon("info-circle"))), "BoxCox: For positive-valued data with light to moderate skewness. modBoxCox: For data with high skewness or values close to zero. Auto-select: Automatically chooses the optimal transformation based on data skewness."), "Select Transformation Model:"),
+                     choices = c("BoxCox" = "BoxCox", "modBoxCox" = "modBoxCox", "Auto-select" = "AutoSelect"),
                      selected = "AutoSelect", inline = TRUE),
         
-        # Action buttons and other inputs
         div(class = "parallel-buttons",
             actionButton("run_parallel_btn", "Run Parallel Analysis", class = "btn-primary"),
             actionButton("reset_parallel_btn", "Reset File", class = "btn-secondary")
         ),
         div(style = "margin-top: 15px;", uiOutput("parallel_message")),
-
         hr(),
         numericInput("cores", "Number of Cores:", value = 1, min = 1),
         textInput(inputId = "parallel_unit_input", label = "Unit of Measurement", value = "", placeholder = "ex. g/L")
       ),
-      # Main panel with tabs for different result views
       mainPanel(
         tabsetPanel(
           type = "pills", id = "my-nav",
@@ -314,13 +241,7 @@ ui <- navbarPage(
                    div(style = "margin-top: 15px;"),
                    div(class = "gender-filter-container",
                        tags$span("Select Genders to Display:"),
-                       checkboxGroupInput(
-                         inputId = "parallel_gender_filter",
-                         label = NULL,
-                         choices = c("Male", "Female", "Combined"),
-                         selected = c("Male", "Female", "Combined"),
-                         inline = TRUE
-                       )
+                       checkboxGroupInput(inputId = "parallel_gender_filter", label = NULL, choices = c("Male", "Female", "Combined"), selected = c("Male", "Female", "Combined"), inline = TRUE)
                    ),
                    plotOutput("combined_dumbbell_plot"),
                    div(class = "spacing-div"),
@@ -334,10 +255,7 @@ ui <- navbarPage(
                     plotOutput("combined_box_plot"),
                     card_footer(
                       "Plot Description:",
-                      tooltip(
-                        bs_icon("info-circle"),
-                        "The square in each box plot represents the middle 50% of the data, also known as the interquartile range (IQR). The line inside the box is the median, which is the midpoint of the HGB data. The whiskers extending from the box show the normal range of the data that is not considered an outlier. The red dots are outliers, which are values significantly different from the rest of their subpopulation and fall outside of the whiskers."
-                      )
+                      tooltip(bs_icon("info-circle"), "The square in each box plot represents the middle 50% of the data, also known as the interquartile range (IQR). The line inside the box is the median, which is the midpoint of the HGB data. The whiskers extending from the box show the normal range of the data that is not considered an outlier. The red dots are outliers, which are values significantly different from the rest of their subpopulation and fall outside of the whiskers.")
                     )
                    ),
                    div(class = "spacing-div"),
@@ -348,7 +266,6 @@ ui <- navbarPage(
     )
   ),
 
-  # Footer of the application with copyright and a link
   footer = tags$footer(
     HTML('© 2025 <a href="https://github.com/yakubinaweed/refineR-reference-interval" target="_blank">Naweed Yakubi</a> • All rights reserved.'),
     style = "
