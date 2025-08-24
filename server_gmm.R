@@ -194,7 +194,11 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
   output$gmm_manual_model_ui <- renderUI({
     if (input$gmm_model_selection_choice == "Manual Selection") {
       model_names <- c("EII", "VII", "EEI", "VEI", "EVI", "VVI", "EEE", "EVE", "VEE", "VVV")
-      selectInput("gmm_manual_model", "Select GMM Model:", choices = model_names, selected = "EII")
+      
+      tagList(
+        selectInput("gmm_manual_model", "Select GMM Model:", choices = model_names, selected = "EII"),
+        selectInput("gmm_component_number", "Select Component Number:", choices = c("Auto", as.character(2:10)), selected = "Auto")
+      )
     }
   })
 
@@ -266,7 +270,11 @@ gmmServer <- function(input, output, session, gmm_uploaded_data_rv, gmm_processe
     }
 
     g_range_to_use <- if (input$gmm_model_selection_choice == "Manual Selection") {
-      2:10
+      if (input$gmm_component_number == "Auto") {
+        2:10
+      } else {
+        2:as.numeric(input$gmm_component_number)
+      }
     } else {
       2:10
     }
